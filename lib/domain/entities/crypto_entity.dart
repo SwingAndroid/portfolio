@@ -43,15 +43,22 @@ class CryptoEntity extends Equatable {
         .fold(0.0, (sum, t) => sum + (t.quantity * t.pricePerCoin));
   }
 
+  double get totalProceeds {
+    return transactions
+        .where((t) => t.type.removesHoldings)
+        .fold(0.0, (sum, t) => sum + (t.quantity * t.pricePerCoin));
+  }
+
   double get totalBoughtQuantity {
     return transactions
         .where((t) => t.type.addsHoldings)
         .fold(0.0, (sum, t) => sum + t.quantity);
   }
 
+  /// (Total cost − Total proceeds) / Current holdings
   double get averageNetCost {
-    if (totalBoughtQuantity == 0) return 0;
-    return totalBought / totalBoughtQuantity;
+    if (totalHoldings <= 0) return 0;
+    return (totalBought - totalProceeds) / totalHoldings;
   }
 
   double get totalProfitLoss => holdingsValue - totalCost;
