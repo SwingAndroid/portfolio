@@ -27,6 +27,36 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
+  // ── type metadata ──────────────────────────────────────────────────────────
+
+  Color get _typeColor {
+    switch (_type) {
+      case TransactionType.buy:
+        return AppTheme.profit;
+      case TransactionType.sell:
+        return AppTheme.loss;
+      case TransactionType.transferIn:
+        return const Color(0xFF3B82F6);
+      case TransactionType.transferOut:
+        return const Color(0xFFF97316);
+    }
+  }
+
+  String get _typeLabel {
+    switch (_type) {
+      case TransactionType.buy:
+        return 'Add Buy';
+      case TransactionType.sell:
+        return 'Add Sell';
+      case TransactionType.transferIn:
+        return 'Add Transfer In';
+      case TransactionType.transferOut:
+        return 'Add Transfer Out';
+    }
+  }
+
+  bool get _isTransfer => _type.isTransfer;
+
   @override
   void dispose() {
     _quantityCtrl.dispose();
@@ -61,6 +91,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
                 // Title
                 const Text(
                   'Add Transaction',
@@ -73,39 +104,20 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 const SizedBox(height: 4),
                 Text(
                   widget.cryptoSymbol,
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary, fontSize: 14),
                 ),
                 const SizedBox(height: 24),
 
-                // Buy / Sell toggle
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      _TypeButton(
-                        label: 'Buy',
-                        isSelected: _type == TransactionType.buy,
-                        color: AppTheme.profit,
-                        onTap: () => setState(() => _type = TransactionType.buy),
-                      ),
-                      _TypeButton(
-                        label: 'Sell',
-                        isSelected: _type == TransactionType.sell,
-                        color: AppTheme.loss,
-                        onTap: () => setState(() => _type = TransactionType.sell),
-                      ),
-                    ],
-                  ),
-                ),
+                // 2 × 2 type selector
+                _buildTypeSelector(),
                 const SizedBox(height: 20),
 
                 // Quantity
                 TextFormField(
                   controller: _quantityCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: AppTheme.textPrimary),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
@@ -122,19 +134,37 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ),
                 const SizedBox(height: 16),
 
-                // Price per coin
+                // Price per coin — optional for transfers
                 TextFormField(
                   controller: _priceCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: AppTheme.textPrimary),
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: 'Price per coin (USD)',
+                  decoration: InputDecoration(
+                    labelText: _isTransfer
+                        ? 'Cost basis per coin (optional)'
+                        : 'Price per coin (USD)',
                     hintText: '0.00',
                     prefixText: '\$ ',
-                    prefixStyle: TextStyle(color: AppTheme.textSecondary),
+                    prefixStyle:
+                        const TextStyle(color: AppTheme.textSecondary),
+                    helperText: _isTransfer
+                        ? 'Leave empty if unknown'
+                        : null,
+                    helperStyle:
+                        const TextStyle(color: AppTheme.textTertiary, fontSize: 11),
                   ),
                   validator: (v) {
+                    if (_isTransfer) {
+                      // Allow empty or zero for transfers
+                      if (v != null && v.isNotEmpty) {
+                        if (double.tryParse(v) == null || double.parse(v) < 0) {
+                          return 'Enter a valid amount';
+                        }
+                      }
+                      return null;
+                    }
                     if (v == null || v.isEmpty) return 'Enter price';
                     if (double.tryParse(v) == null || double.parse(v) < 0) {
                       return 'Enter a valid price';
@@ -148,7 +178,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 GestureDetector(
                   onTap: _pickDate,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(12),
@@ -161,10 +192,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                         const SizedBox(width: 12),
                         Text(
                           '${_date.day}/${_date.month}/${_date.year}',
-                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary, fontSize: 15),
                         ),
                         const Spacer(),
-                        const Icon(Icons.arrow_drop_down, color: AppTheme.textSecondary),
+                        const Icon(Icons.arrow_drop_down,
+                            color: AppTheme.textSecondary),
                       ],
                     ),
                   ),
@@ -172,8 +205,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
                 const SizedBox(height: 24),
 
-                // Total preview
-                if (_quantityCtrl.text.isNotEmpty && _priceCtrl.text.isNotEmpty)
+                // Total preview (only when price is set)
+                if (_quantityCtrl.text.isNotEmpty &&
+                    _priceCtrl.text.isNotEmpty &&
+                    (double.tryParse(_priceCtrl.text) ?? 0) > 0)
                   _buildTotalPreview(),
 
                 const SizedBox(height: 8),
@@ -182,10 +217,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _type == TransactionType.buy
-                        ? AppTheme.profit
-                        : AppTheme.loss,
-                    foregroundColor: Colors.white,
+                    backgroundColor: _typeColor,
+                    foregroundColor: _type == TransactionType.buy
+                        ? Colors.black
+                        : Colors.white,
                     minimumSize: const Size(double.infinity, 56),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -199,7 +234,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                               color: Colors.white, strokeWidth: 2),
                         )
                       : Text(
-                          _type == TransactionType.buy ? 'Add Buy' : 'Add Sell',
+                          _typeLabel,
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w700),
                         ),
@@ -209,6 +244,61 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ── 2 × 2 type selector ────────────────────────────────────────────────────
+
+  Widget _buildTypeSelector() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _TypeChip(
+                label: 'Buy',
+                icon: Icons.arrow_downward_rounded,
+                isSelected: _type == TransactionType.buy,
+                color: AppTheme.profit,
+                onTap: () => setState(() => _type = TransactionType.buy),
+              ),
+              _TypeChip(
+                label: 'Sell',
+                icon: Icons.arrow_upward_rounded,
+                isSelected: _type == TransactionType.sell,
+                color: AppTheme.loss,
+                onTap: () => setState(() => _type = TransactionType.sell),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _TypeChip(
+                label: 'Transfer In',
+                icon: Icons.call_received_rounded,
+                isSelected: _type == TransactionType.transferIn,
+                color: const Color(0xFF3B82F6),
+                onTap: () =>
+                    setState(() => _type = TransactionType.transferIn),
+              ),
+              _TypeChip(
+                label: 'Transfer Out',
+                icon: Icons.call_made_rounded,
+                isSelected: _type == TransactionType.transferOut,
+                color: const Color(0xFFF97316),
+                onTap: () =>
+                    setState(() => _type = TransactionType.transferOut),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -228,11 +318,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Total', style: TextStyle(color: AppTheme.textSecondary)),
+          Text(
+            _isTransfer ? 'Cost basis total' : 'Total',
+            style: const TextStyle(color: AppTheme.textSecondary),
+          ),
           Text(
             '\$${total.toStringAsFixed(2)}',
             style: const TextStyle(
-                color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 16),
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 16),
           ),
         ],
       ),
@@ -263,12 +358,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
+    // For transfers, price is optional — default to 0 if empty
+    final priceText = _priceCtrl.text.trim();
+    final pricePerCoin = priceText.isEmpty ? 0.0 : double.parse(priceText);
+
     final transaction = TransactionEntity(
       id: const Uuid().v4(),
       cryptoId: widget.cryptoId,
       type: _type,
       quantity: double.parse(_quantityCtrl.text),
-      pricePerCoin: double.parse(_priceCtrl.text),
+      pricePerCoin: pricePerCoin,
       date: _date,
     );
 
@@ -281,14 +380,18 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 }
 
-class _TypeButton extends StatelessWidget {
+// ── Type chip widget ───────────────────────────────────────────────────────────
+
+class _TypeChip extends StatelessWidget {
   final String label;
+  final IconData icon;
   final bool isSelected;
   final Color color;
   final VoidCallback onTap;
 
-  const _TypeButton({
+  const _TypeChip({
     required this.label,
+    required this.icon,
     required this.isSelected,
     required this.color,
     required this.onTap,
@@ -301,22 +404,30 @@ class _TypeButton extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(4),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: isSelected ? Border.all(color: color, width: 1.5) : null,
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? color : AppTheme.textSecondary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 15,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 14,
+                  color: isSelected ? color : AppTheme.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? color : AppTheme.textSecondary,
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 13,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

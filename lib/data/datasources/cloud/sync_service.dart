@@ -32,7 +32,10 @@ class SyncService {
         final entity = TransactionEntity(
           id: t['id'] as String,
           cryptoId: t['crypto_id'] as String,
-          type: t['type'] == 'buy' ? TransactionType.buy : TransactionType.sell,
+          type: TransactionType.values.firstWhere(
+            (e) => e.name == (t['type'] as String),
+            orElse: () => TransactionType.buy,
+          ),
           quantity: (t['quantity'] as num).toDouble(),
           pricePerCoin: (t['price_per_coin'] as num).toDouble(),
           date: DateTime.parse(t['date'] as String).toLocal(),

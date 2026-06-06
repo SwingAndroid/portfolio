@@ -24,7 +24,7 @@ class CryptoEntity extends Equatable {
 
   double get totalHoldings {
     return transactions.fold(0.0, (sum, t) {
-      return t.type == TransactionType.buy ? sum + t.quantity : sum - t.quantity;
+      return t.type.addsHoldings ? sum + t.quantity : sum - t.quantity;
     });
   }
 
@@ -32,20 +32,20 @@ class CryptoEntity extends Equatable {
 
   double get totalCost {
     return transactions.fold(0.0, (sum, t) {
-      if (t.type == TransactionType.buy) return sum + (t.quantity * t.pricePerCoin);
+      if (t.type.addsHoldings) return sum + (t.quantity * t.pricePerCoin);
       return sum - (t.quantity * t.pricePerCoin);
     });
   }
 
   double get totalBought {
     return transactions
-        .where((t) => t.type == TransactionType.buy)
+        .where((t) => t.type.addsHoldings)
         .fold(0.0, (sum, t) => sum + (t.quantity * t.pricePerCoin));
   }
 
   double get totalBoughtQuantity {
     return transactions
-        .where((t) => t.type == TransactionType.buy)
+        .where((t) => t.type.addsHoldings)
         .fold(0.0, (sum, t) => sum + t.quantity);
   }
 

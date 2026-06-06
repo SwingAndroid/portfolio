@@ -1,6 +1,12 @@
 import 'package:equatable/equatable.dart';
 
-enum TransactionType { buy, sell }
+enum TransactionType { buy, sell, transferIn, transferOut }
+
+extension TransactionTypeX on TransactionType {
+  bool get addsHoldings => this == TransactionType.buy || this == TransactionType.transferIn;
+  bool get removesHoldings => this == TransactionType.sell || this == TransactionType.transferOut;
+  bool get isTransfer => this == TransactionType.transferIn || this == TransactionType.transferOut;
+}
 
 class TransactionEntity extends Equatable {
   final String id;

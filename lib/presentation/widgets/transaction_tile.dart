@@ -15,12 +15,53 @@ class TransactionTile extends StatelessWidget {
     this.onDelete,
   });
 
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  Color _typeColor() {
+    switch (transaction.type) {
+      case TransactionType.buy:
+        return AppTheme.profit;
+      case TransactionType.sell:
+        return AppTheme.loss;
+      case TransactionType.transferIn:
+        return const Color(0xFF3B82F6); // blue
+      case TransactionType.transferOut:
+        return const Color(0xFFF97316); // orange
+    }
+  }
+
+  String _typeLabel() {
+    switch (transaction.type) {
+      case TransactionType.buy:
+        return 'Buy';
+      case TransactionType.sell:
+        return 'Sell';
+      case TransactionType.transferIn:
+        return 'Transfer In';
+      case TransactionType.transferOut:
+        return 'Transfer Out';
+    }
+  }
+
+  IconData _typeIcon() {
+    switch (transaction.type) {
+      case TransactionType.buy:
+        return Icons.arrow_downward_rounded;
+      case TransactionType.sell:
+        return Icons.arrow_upward_rounded;
+      case TransactionType.transferIn:
+        return Icons.call_received_rounded;
+      case TransactionType.transferOut:
+        return Icons.call_made_rounded;
+    }
+  }
+
+  String _amountPrefix() =>
+      transaction.type.addsHoldings ? '+' : '-';
+
   @override
   Widget build(BuildContext context) {
-    final isBuy = transaction.type == TransactionType.buy;
-    final typeColor = isBuy ? AppTheme.profit : AppTheme.loss;
-    final typeLabel = isBuy ? 'Buy' : 'Sell';
-    final amountPrefix = isBuy ? '+' : '-';
+    final color = _typeColor();
 
     return Dismissible(
       key: Key(transaction.id),
@@ -39,26 +80,24 @@ class TransactionTile extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Icon badge
             Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: typeColor.withValues(alpha: 0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                isBuy ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                color: typeColor,
-                size: 18,
-              ),
+              child: Icon(_typeIcon(), color: color, size: 18),
             ),
             const SizedBox(width: 12),
+            // Label + date
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    typeLabel,
+                    _typeLabel(),
                     style: const TextStyle(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.w500,
@@ -73,29 +112,40 @@ class TransactionTile extends StatelessWidget {
                 ],
               ),
             ),
+            // Amount + value
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '$amountPrefix${Formatters.formatCryptoAmount(transaction.quantity)} $cryptoSymbol',
+                  '${_amountPrefix()}${Formatters.formatCryptoAmount(transaction.quantity)} $cryptoSymbol',
                   style: TextStyle(
-                    color: typeColor,
+                    color: color,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  Formatters.formatCurrency(transaction.totalValue),
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                ),
+                transaction.pricePerCoin > 0
+                    ? Text(
+                        Formatters.formatCurrency(transaction.totalValue),
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 12),
+                      )
+                    : const Text(
+                        'No cost basis',
+                        style: TextStyle(
+                            color: AppTheme.textTertiary,
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic),
+                      ),
               ],
             ),
             if (onDelete != null) ...[
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: onDelete,
-                child: const Icon(Icons.more_vert, color: AppTheme.textTertiary, size: 18),
+                child: const Icon(Icons.more_vert,
+                    color: AppTheme.textTertiary, size: 18),
               ),
             ],
           ],
