@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/entities/crypto_entity.dart';
+import '../bloc/auth/auth_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
@@ -30,6 +31,7 @@ class DesktopSidebar extends StatelessWidget {
           Expanded(child: _buildCryptoList(context)),
           const Divider(color: AppTheme.divider, height: 1),
           _buildAddButton(context),
+          _buildLogoutButton(context),
         ],
       ),
     );
@@ -168,7 +170,7 @@ class DesktopSidebar extends StatelessWidget {
 
   Widget _buildAddButton(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: ElevatedButton.icon(
         onPressed: () => context.go('/search'),
         icon: const Icon(Icons.add, color: Colors.black, size: 18),
@@ -181,6 +183,21 @@ class DesktopSidebar extends StatelessWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle:
               const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: TextButton.icon(
+        onPressed: () => context.read<AuthCubit>().signOut(),
+        icon: const Icon(Icons.logout, color: AppTheme.textTertiary, size: 16),
+        label: const Text('Sign Out',
+            style: TextStyle(color: AppTheme.textTertiary, fontSize: 13)),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(double.infinity, 36),
         ),
       ),
     );

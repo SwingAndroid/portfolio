@@ -3,12 +3,18 @@ import '../../domain/entities/transaction_entity.dart';
 import '../../domain/repositories/crypto_repository.dart';
 import '../datasources/local/crypto_local_datasource.dart';
 import '../datasources/remote/crypto_remote_datasource.dart';
+import '../datasources/cloud/supabase_datasource.dart';
 
 class CryptoRepositoryImpl implements CryptoRepository {
   final CryptoLocalDatasource localDatasource;
   final CryptoRemoteDatasource remoteDatasource;
+  final SupabaseDataSource? cloudDatasource;
 
-  CryptoRepositoryImpl({required this.localDatasource, required this.remoteDatasource});
+  CryptoRepositoryImpl({
+    required this.localDatasource,
+    required this.remoteDatasource,
+    this.cloudDatasource,
+  });
 
   @override
   Future<List<CryptoEntity>> getPortfolio() async {
@@ -16,13 +22,10 @@ class CryptoRepositoryImpl implements CryptoRepository {
     if (cryptoModels.isEmpty) return [];
 
     final coinIds = cryptoModels.map((c) => c.coinId).toList();
-
     Map<String, double> prices = {};
-    Map<String, double> changes = {};
 
     try {
-      final response = await remoteDatasource.getMultiplePrices(coinIds);
-      prices = response;
+      prices = await remoteDatasource.getMultiplePrices(coinIds);
     } catch (_) {}
 
     final entities = <CryptoEntity>[];
@@ -32,7 +35,7 @@ class CryptoRepositoryImpl implements CryptoRepository {
       entities.add(model.toEntity(
         transactions: transactions,
         currentPrice: prices[model.coinId] ?? 0.0,
-        priceChangePercent24h: changes[model.coinId] ?? 0.0,
+        priceChangePercent24h: 0.0,
       ));
     }
     return entities;
@@ -48,28 +51,44 @@ class CryptoRepositoryImpl implements CryptoRepository {
     final transactions = txModels.map((t) => t.toEntity()).toList();
     final price = await remoteDatasource.getCryptoPrice(model.coinId);
 
-    return model.toEntity(
-      transactions: transactions,
-      currentPrice: price,
-    );
+    return model.toEntity(transactions: transactions, currentPrice: price);
   }
 
   @override
-  Future<void> addCrypto(CryptoEntity crypto) => localDatasource.saveCrypto(crypto);
+  Future<void> addCrypto(CryptoEntity crypto) async {
+    await localDatasource.saveCrypto(crypto);
+    try {
+      await cloudDatasource?.upsertCrypto(crypto);
+    } catch (_) {}
+  }
 
   @override
-  Future<void> deleteCrypto(String cryptoId) => localDatasource.deleteCrypto(cryptoId);
+  Future<void> deleteCrypto(String cryptoId) async {
+    await localDatasource.deleteCrypto(cryptoId);
+    try {
+      await cloudDatasource?.deleteCrypto(cryptoId);
+    } catch (_) {}
+  }
 
   @override
-  Future<void> addTransaction(TransactionEntity transaction) =>
-      localDatasource.saveTransaction(transaction);
+  Future<void> addTransaction(TransactionEntity transaction) async {
+    await localDatasource.saveTransaction(transaction);
+    try {
+      await cloudDatasource?.upsertTransaction(transaction);
+    } catch (_) {}
+  }
 
   @override
-  Future<void> deleteTransaction(String transactionId) =>
-      localDatasource.deleteTransaction(transactionId);
+  Future<void> deleteTransaction(String transactionId) async {
+    await localDatasource.deleteTransaction(transactionId);
+    try {
+      await cloudDatasource?.deleteTransaction(transactionId);
+    } catch (_) {}
+  }
 
   @override
-  Future<double> getCryptoPrice(String coinId) => remoteDatasource.getCryptoPrice(coinId);
+  Future<double> getCryptoPrice(String coinId) =>
+      remoteDatasource.getCryptoPrice(coinId);
 
   @override
   Future<List<Map<String, dynamic>>> searchCoins(String query) =>
