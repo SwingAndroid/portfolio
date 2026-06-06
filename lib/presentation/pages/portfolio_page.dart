@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
@@ -39,23 +40,25 @@ class _PortfolioView extends StatelessWidget {
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  // Header: hide on desktop (sidebar shows total balance)
+                  // Mobile header
                   if (!isDesktop)
                     SliverToBoxAdapter(child: _buildHeader(context, state)),
 
-                  // Desktop: just a section title
+                  // Desktop overview card
                   if (isDesktop)
-                    const SliverToBoxAdapter(
+                    SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(32, 32, 32, 16),
-                        child: Text(
-                          'Portfolio Overview',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
+                        child: state is PortfolioLoaded
+                            ? _DesktopOverviewCard(state: state)
+                            : const Text(
+                                'Portfolio Overview',
+                                style: TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
                     ),
 
@@ -79,6 +82,8 @@ class _PortfolioView extends StatelessWidget {
                           delegate: SliverChildBuilderDelegate(
                             (ctx, i) => CryptoCard(
                               crypto: state.cryptos[i],
+                              allocationPercent:
+                                  state.allocationPercent(state.cryptos[i]),
                               onTap: () =>
                                   context.go('/crypto/${state.cryptos[i].id}'),
                             ),
@@ -96,6 +101,8 @@ class _PortfolioView extends StatelessWidget {
                               padding: const EdgeInsets.only(bottom: 12),
                               child: CryptoCard(
                                 crypto: state.cryptos[i],
+                                allocationPercent:
+                                    state.allocationPercent(state.cryptos[i]),
                                 onTap: () =>
                                     context.go('/crypto/${state.cryptos[i].id}'),
                               ),
@@ -155,21 +162,23 @@ class _PortfolioView extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, PortfolioState state) {
-    double totalValue = 0;
-    double totalPnl = 0;
-    double totalPnlPercent = 0;
-    bool isLoaded = false;
-    if (state is PortfolioLoaded) {
-      totalValue = state.totalValue;
-      totalPnl = state.totalProfitLoss;
-      totalPnlPercent = state.totalProfitLossPercent;
-      isLoaded = true;
+    if (state is! PortfolioLoaded) {
+      return PortfolioHeader(
+        totalValue: 0, totalCost: 0, totalPnl: 0,
+        totalPnlPercent: 0, numAssets: 0, isLoaded: false,
+      );
     }
     return PortfolioHeader(
-      totalValue: totalValue,
-      totalPnl: totalPnl,
-      totalPnlPercent: totalPnlPercent,
-      isLoaded: isLoaded,
+      totalValue: state.totalValue,
+      totalCost: state.totalCost,
+      totalPnl: state.totalProfitLoss,
+      totalPnlPercent: state.totalProfitLossPercent,
+      numAssets: state.numAssets,
+      bestSymbol: state.bestPerformer?.symbol,
+      bestPercent: state.bestPerformer?.totalProfitLossPercent,
+      worstSymbol: state.worstPerformer?.symbol,
+      worstPercent: state.worstPerformer?.totalProfitLossPercent,
+      isLoaded: true,
     );
   }
 
@@ -204,6 +213,194 @@ class _PortfolioView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Desktop portfolio overview card ──────────────────────────────────────────
+
+class _DesktopOverviewCard extends StatelessWidget {
+  final PortfolioLoaded state;
+  const _DesktopOverviewCard({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final isProfit = state.totalProfitLoss >= 0;
+    final pnlColor = isProfit ? AppTheme.profit : AppTheme.loss;
+    final best = state.bestPerformer;
+    final worst = state.worstPerformer;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          const Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  color: AppTheme.primary, size: 18),
+              SizedBox(width: 8),
+              Text('Portfolio Overview',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Main value row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Total Balance',
+                      style: TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text(
+                    Formatters.formatCurrency(state.totalValue),
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: pnlColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: pnlColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isProfit
+                            ? Icons.arrow_drop_up
+                            : Icons.arrow_drop_down,
+                        color: pnlColor,
+                        size: 18,
+                      ),
+                      Text(
+                        '${Formatters.formatCurrencyWithSign(state.totalProfitLoss)}  (${Formatters.formatPercent(state.totalProfitLossPercent)})  All time',
+                        style: TextStyle(
+                            color: pnlColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: AppTheme.divider, height: 1),
+          const SizedBox(height: 20),
+          // Stats row
+          Row(
+            children: [
+              _OverviewStat(
+                icon: Icons.paid_outlined,
+                label: 'Total Invested',
+                value: Formatters.formatCurrency(state.totalCost),
+              ),
+              _divider(),
+              _OverviewStat(
+                icon: Icons.grid_view_rounded,
+                label: 'Assets',
+                value: '${state.numAssets} coins',
+              ),
+              if (best != null) ...[
+                _divider(),
+                _OverviewStat(
+                  icon: Icons.trending_up,
+                  label: 'Best Performer',
+                  value:
+                      '${best.symbol}  ${best.totalProfitLossPercent >= 0 ? '+' : ''}${best.totalProfitLossPercent.toStringAsFixed(1)}%',
+                  valueColor: AppTheme.profit,
+                ),
+              ],
+              if (worst != null) ...[
+                _divider(),
+                _OverviewStat(
+                  icon: Icons.trending_down,
+                  label: 'Worst Performer',
+                  value:
+                      '${worst.symbol}  ${worst.totalProfitLossPercent >= 0 ? '+' : ''}${worst.totalProfitLossPercent.toStringAsFixed(1)}%',
+                  valueColor: AppTheme.loss,
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+        height: 40,
+        width: 1,
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        color: AppTheme.divider,
+      );
+}
+
+class _OverviewStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _OverviewStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 12, color: AppTheme.textTertiary),
+            const SizedBox(width: 5),
+            Text(label,
+                style: const TextStyle(
+                    color: AppTheme.textTertiary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? AppTheme.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

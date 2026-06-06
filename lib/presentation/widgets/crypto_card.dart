@@ -6,8 +6,14 @@ import '../../domain/entities/crypto_entity.dart';
 class CryptoCard extends StatelessWidget {
   final CryptoEntity crypto;
   final VoidCallback? onTap;
+  final double? allocationPercent;
 
-  const CryptoCard({super.key, required this.crypto, this.onTap});
+  const CryptoCard({
+    super.key,
+    required this.crypto,
+    this.onTap,
+    this.allocationPercent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +67,33 @@ class CryptoCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    Formatters.formatCrypto(crypto.totalHoldings, crypto.symbol),
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  Row(
+                    children: [
+                      Text(
+                        Formatters.formatCrypto(crypto.totalHoldings, crypto.symbol),
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 13),
+                      ),
+                      if (allocationPercent != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${allocationPercent!.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              color: AppTheme.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
