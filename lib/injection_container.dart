@@ -95,5 +95,6 @@ Future<void> initDependencies() async {
         addCrypto: sl(),
         deleteCrypto: sl(),
         getCryptoPrice: sl(),
+        syncService: sl(),
       ));
 }

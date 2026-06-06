@@ -17,7 +17,12 @@ class AuthCubit extends Cubit<AppAuthState> {
   void _init() {
     final user = _client.auth.currentUser;
     if (user != null) {
-      emit(AuthAuthenticated(user));
+      // Already authenticated (e.g. page refresh) — sync from cloud first
+      _syncService.pullFromCloud().then((_) {
+        emit(AuthAuthenticated(user));
+      }).catchError((_) {
+        emit(AuthAuthenticated(user));
+      });
     } else {
       emit(const AuthUnauthenticated());
     }

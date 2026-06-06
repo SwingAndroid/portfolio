@@ -51,8 +51,10 @@ GoRouter buildRouter(AuthCubit authCubit) {
           ),
           GoRoute(
             path: '/crypto/:id',
-            builder: (context, state) =>
-                CryptoDetailPage(cryptoId: state.pathParameters['id']!),
+            builder: (context, state) => CryptoDetailPage(
+              key: ValueKey(state.pathParameters['id']),
+              cryptoId: state.pathParameters['id']!,
+            ),
           ),
           GoRoute(
             path: '/search',

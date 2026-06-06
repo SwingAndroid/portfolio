@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../data/datasources/cloud/sync_service.dart';
 import '../../../domain/usecases/get_portfolio_usecase.dart';
 import '../../../domain/usecases/add_crypto_usecase.dart';
 import '../../../domain/usecases/delete_crypto_usecase.dart';
@@ -11,12 +12,14 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
   final AddCryptoUsecase addCrypto;
   final DeleteCryptoUsecase deleteCrypto;
   final GetCryptoPriceUsecase getCryptoPrice;
+  final SyncService syncService;
 
   PortfolioBloc({
     required this.getPortfolio,
     required this.addCrypto,
     required this.deleteCrypto,
     required this.getCryptoPrice,
+    required this.syncService,
   }) : super(const PortfolioInitial()) {
     on<LoadPortfolioEvent>(_onLoad);
     on<RefreshPortfolioEvent>(_onRefresh);
@@ -39,10 +42,18 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
       emit((state as PortfolioLoaded).copyWith(isRefreshing: true));
     }
     try {
+      // Pull latest data from Supabase into Hive, then reload
+      await syncService.pullFromCloud();
       final cryptos = await getPortfolio();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {
-      emit(PortfolioError(e.toString()));
+      // Fallback: reload from local cache even if cloud sync fails
+      try {
+        final cryptos = await getPortfolio();
+        emit(PortfolioLoaded(cryptos: cryptos));
+      } catch (_) {
+        emit(PortfolioError(e.toString()));
+      }
     }
   }
 
