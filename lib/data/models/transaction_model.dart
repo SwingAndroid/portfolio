@@ -1,0 +1,58 @@
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../domain/entities/transaction_entity.dart';
+
+part 'transaction_model.g.dart';
+
+@HiveType(typeId: 1)
+class TransactionModel extends HiveObject {
+  @HiveField(0)
+  final String id;
+
+  @HiveField(1)
+  final String cryptoId;
+
+  @HiveField(2)
+  final int typeIndex;
+
+  @HiveField(3)
+  final double quantity;
+
+  @HiveField(4)
+  final double pricePerCoin;
+
+  @HiveField(5)
+  final DateTime date;
+
+  @HiveField(6)
+  final String? note;
+
+  TransactionModel({
+    required this.id,
+    required this.cryptoId,
+    required this.typeIndex,
+    required this.quantity,
+    required this.pricePerCoin,
+    required this.date,
+    this.note,
+  });
+
+  TransactionEntity toEntity() => TransactionEntity(
+    id: id,
+    cryptoId: cryptoId,
+    type: TransactionType.values[typeIndex],
+    quantity: quantity,
+    pricePerCoin: pricePerCoin,
+    date: date,
+    note: note,
+  );
+
+  factory TransactionModel.fromEntity(TransactionEntity entity) => TransactionModel(
+    id: entity.id,
+    cryptoId: entity.cryptoId,
+    typeIndex: entity.type.index,
+    quantity: entity.quantity,
+    pricePerCoin: entity.pricePerCoin,
+    date: entity.date,
+    note: entity.note,
+  );
+}
