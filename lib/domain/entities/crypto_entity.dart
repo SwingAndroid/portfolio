@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'transaction_entity.dart';
+import 'transaction_entity.dart'; // also imports TransactionType
 
 class CryptoEntity extends Equatable {
   final String id;
@@ -59,6 +59,16 @@ class CryptoEntity extends Equatable {
   double get averageNetCost {
     if (totalHoldings <= 0) return 0;
     return (totalBought - totalProceeds) / totalHoldings;
+  }
+
+  /// Lowest price paid across all buy transactions (transfers excluded).
+  double get minBuyPrice {
+    final prices = transactions
+        .where((t) => t.type == TransactionType.buy && t.pricePerCoin > 0)
+        .map((t) => t.pricePerCoin)
+        .toList();
+    if (prices.isEmpty) return 0;
+    return prices.reduce((a, b) => a < b ? a : b);
   }
 
   double get totalProfitLoss => holdingsValue - totalCost;

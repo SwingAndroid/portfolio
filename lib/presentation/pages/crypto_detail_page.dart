@@ -318,71 +318,81 @@ class _CryptoDetailView extends StatelessWidget {
 
   Widget _holdingsCard(BuildContext context, dynamic crypto, bool isProfit,
       Color pnlColor) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
+    return Column(
+      children: [
+        // ── Holdings card ───────────────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.diamond, color: AppTheme.primary, size: 18),
-              SizedBox(width: 6),
-              Text('Holdings',
-                  style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600)),
+              const Row(
+                children: [
+                  Icon(Icons.diamond, color: AppTheme.primary, size: 18),
+                  SizedBox(width: 6),
+                  Text('Holdings',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: StatRow(
+                      label: 'HOLDINGS VALUE',
+                      value: Formatters.formatCurrency(crypto.holdingsValue),
+                    ),
+                  ),
+                  Expanded(
+                    child: StatRow(
+                      label: 'HOLDINGS',
+                      value: Formatters.formatCrypto(
+                          crypto.totalHoldings, crypto.symbol),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: StatRow(
+                      label: 'TOTAL COST',
+                      value: Formatters.formatCurrency(crypto.totalCost),
+                    ),
+                  ),
+                  Expanded(
+                    child: StatRow(
+                      label: 'AVERAGE NET COST',
+                      value: Formatters.formatCurrency(crypto.averageNetCost),
+                      hasInfo: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              StatRow(
+                label: 'TOTAL PROFIT/LOSS',
+                value:
+                    '${Formatters.formatCurrencyWithSign(crypto.totalProfitLoss)}  (${isProfit ? "▲" : "▼"} ${Formatters.formatPercent(crypto.totalProfitLossPercent).replaceAll('+', '')})',
+                valueColor: pnlColor,
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: StatRow(
-                  label: 'HOLDINGS VALUE',
-                  value: Formatters.formatCurrency(crypto.holdingsValue),
-                ),
-              ),
-              Expanded(
-                child: StatRow(
-                  label: 'HOLDINGS',
-                  value:
-                      Formatters.formatCrypto(crypto.totalHoldings, crypto.symbol),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: StatRow(
-                  label: 'TOTAL COST',
-                  value: Formatters.formatCurrency(crypto.totalCost),
-                ),
-              ),
-              Expanded(
-                child: StatRow(
-                  label: 'AVERAGE NET COST',
-                  value: Formatters.formatCurrency(crypto.averageNetCost),
-                  hasInfo: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          StatRow(
-            label: 'TOTAL PROFIT/LOSS',
-            value:
-                '${Formatters.formatCurrencyWithSign(crypto.totalProfitLoss)}  (${isProfit ? "▲" : "▼"} ${Formatters.formatPercent(crypto.totalProfitLossPercent).replaceAll('+', '')})',
-            valueColor: pnlColor,
-          ),
+        ),
+        // ── Price analysis card ─────────────────────────────────────────────
+        if (crypto.currentPrice > 0 && crypto.minBuyPrice > 0) ...[
+          const SizedBox(height: 12),
+          _PriceAnalysisCard(crypto: crypto),
         ],
-      ),
+      ],
     );
   }
 
@@ -513,6 +523,99 @@ class _CryptoDetailView extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: AppTheme.loss)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Price analysis card ───────────────────────────────────────────────────────
+
+class _PriceAnalysisCard extends StatelessWidget {
+  final dynamic crypto;
+  const _PriceAnalysisCard({required this.crypto});
+
+  @override
+  Widget build(BuildContext context) {
+    final currentPrice = crypto.currentPrice as double;
+    final minBuy = crypto.minBuyPrice as double;
+    final gap = ((currentPrice - minBuy) / minBuy) * 100;
+    final isCheaper = currentPrice <= minBuy; // today is at or below best entry
+    final gapColor = isCheaper ? AppTheme.profit : AppTheme.loss;
+    final gapIcon = isCheaper ? '▼' : '▲';
+    final gapLabel = isCheaper
+        ? '${gap.abs().toStringAsFixed(2)}% below your best entry'
+        : '${gap.abs().toStringAsFixed(2)}% above your best entry';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.show_chart, color: AppTheme.primary, size: 18),
+              SizedBox(width: 6),
+              Text('Price Analysis',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: StatRow(
+                  label: 'CURRENT PRICE',
+                  value: Formatters.formatPrice(currentPrice),
+                ),
+              ),
+              Expanded(
+                child: StatRow(
+                  label: 'BEST BUY PRICE',
+                  value: Formatters.formatPrice(minBuy),
+                  valueColor: AppTheme.profit,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: gapColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: gapColor.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isCheaper
+                      ? Icons.thumb_up_outlined
+                      : Icons.arrow_upward_rounded,
+                  color: gapColor,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$gapIcon $gapLabel',
+                    style: TextStyle(
+                      color: gapColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
