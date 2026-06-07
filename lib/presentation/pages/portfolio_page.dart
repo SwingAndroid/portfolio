@@ -7,6 +7,7 @@ import '../../core/utils/responsive.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
+import '../widgets/allocation_chart.dart';
 import '../widgets/crypto_card.dart';
 import '../widgets/portfolio_header.dart';
 
@@ -62,11 +63,29 @@ class _PortfolioView extends StatelessWidget {
                       ),
                     ),
 
+                  // Allocation chart (shown when loaded and has coins)
+                  if (state is PortfolioLoaded && state.cryptos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child: PortfolioAllocationCard(
+                          cryptos: state.cryptos,
+                          totalValue: state.totalValue,
+                        ),
+                      ),
+                    ),
+
                   if (state is PortfolioLoaded) ...[
                     if (state.cryptos.isEmpty)
                       SliverFillRemaining(child: _buildEmptyState(context))
                     else if (isWide)
                       // Tablet & Desktop: grid layout
+
                       SliverPadding(
                         padding: EdgeInsets.symmetric(
                           horizontal: isDesktop ? 32 : 24,
