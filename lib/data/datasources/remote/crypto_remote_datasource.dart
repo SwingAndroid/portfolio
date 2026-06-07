@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
+import '../../../domain/entities/price_point.dart';
 
 abstract class CryptoRemoteDatasource {
   Future<double> getCryptoPrice(String coinId);
   Future<List<Map<String, dynamic>>> searchCoins(String query);
   Future<Map<String, dynamic>?> getCoinDetails(String coinId);
   Future<Map<String, double>> getMultiplePrices(List<String> coinIds);
+  Future<List<PricePoint>> getMarketChart(String coinId, {int days});
 }
 
 class CryptoRemoteDatasourceImpl implements CryptoRemoteDatasource {
@@ -70,6 +72,29 @@ class CryptoRemoteDatasourceImpl implements CryptoRemoteDatasource {
       return result;
     } catch (_) {
       return {};
+    }
+  }
+
+  @override
+  Future<List<PricePoint>> getMarketChart(String coinId, {int days = 90}) async {
+    try {
+      final response =
+          await dio.get('/coins/$coinId/market_chart', queryParameters: {
+        'vs_currency': 'usd',
+        'days': days,
+      });
+      final prices = (response.data['prices'] as List?) ?? [];
+      return prices
+          .map((p) {
+            final pair = p as List;
+            return PricePoint(
+              DateTime.fromMillisecondsSinceEpoch((pair[0] as num).toInt()),
+              (pair[1] as num).toDouble(),
+            );
+          })
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 }

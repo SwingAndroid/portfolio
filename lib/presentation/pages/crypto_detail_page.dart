@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
@@ -10,8 +13,8 @@ import '../bloc/crypto_detail/crypto_detail_state.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../../domain/entities/transaction_entity.dart';
-import '../../domain/entities/market_data.dart';
 import '../../domain/entities/entry_signal.dart';
+import '../../domain/entities/price_point.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../widgets/stat_row.dart';
@@ -90,8 +93,7 @@ class _CryptoDetailView extends StatelessWidget {
                 padding: EdgeInsets.symmetric(
                     horizontal: isWide ? 24 : 16, vertical: 8),
                 children: [
-                  _holdingsCard(context, crypto, isProfit, pnlColor,
-                      state.marketData),
+                  _holdingsCard(context, crypto, isProfit, pnlColor, state),
                   const SizedBox(height: 24),
                   _TransactionSection(
                     transactions: crypto.transactions,
@@ -158,7 +160,7 @@ class _CryptoDetailView extends StatelessWidget {
                       padding: const EdgeInsets.all(28),
                       children: [
                         _holdingsCard(context, crypto, isProfit, pnlColor,
-                            state.marketData),
+                            state),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: () => _showAddTransaction(
@@ -279,7 +281,8 @@ class _CryptoDetailView extends StatelessWidget {
   }
 
   Widget _holdingsCard(BuildContext context, dynamic crypto, bool isProfit,
-      Color pnlColor, MarketData? marketData) {
+      Color pnlColor, CryptoDetailLoaded state) {
+    final marketData = state.marketData;
     final signal = EntrySignal.compute(
       currentPrice: crypto.currentPrice as double,
       avgBuyPrice: crypto.avgBuyPrice as double,
@@ -293,6 +296,15 @@ class _CryptoDetailView extends StatelessWidget {
           _EntrySignalCard(signal: signal),
           const SizedBox(height: 12),
         ],
+        // ── Price chart with avg-cost line + buy markers ────────────────────
+        _PriceChartCard(
+          crypto: crypto,
+          history: state.priceHistory,
+          days: state.chartDays,
+          loading: state.chartLoading,
+          onRange: (d) =>
+              context.read<CryptoDetailCubit>().loadChart(crypto.coinId, d),
+        ),
         // ── Holdings card ───────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(20),
@@ -994,6 +1006,349 @@ class _PriceAnalysisCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Price chart card (price history + avg cost + buy markers) ───────────────
+
+class _PriceChartCard extends StatelessWidget {
+  final dynamic crypto;
+  final List<PricePoint>? history;
+  final int days;
+  final bool loading;
+  final ValueChanged<int> onRange;
+
+  const _PriceChartCard({
+    required this.crypto,
+    required this.history,
+    required this.days,
+    required this.loading,
+    required this.onRange,
+  });
+
+  static const _ranges = [(30, '30D'), (90, '90D'), (365, '1Y')];
+
+  String _yLabel(double v) {
+    if (v >= 1000) return '\$${(v / 1000).toStringAsFixed(v >= 10000 ? 0 : 1)}k';
+    if (v >= 1) return '\$${v.toStringAsFixed(0)}';
+    if (v >= 0.01) return '\$${v.toStringAsFixed(2)}';
+    return '\$${v.toStringAsFixed(4)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = history != null && history!.isNotEmpty;
+    // Nothing to show and nothing loading → take no space.
+    if (!hasData && !loading) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header + range selector ──────────────────────────────────
+            Row(
+              children: [
+                const Icon(Icons.candlestick_chart_rounded,
+                    color: AppTheme.primary, size: 18),
+                const SizedBox(width: 6),
+                const Text('Price History',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w600)),
+                const Spacer(),
+                ..._ranges.map((r) => Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: _ChartRangeChip(
+                        label: r.$2,
+                        selected: days == r.$1,
+                        onTap: () => onRange(r.$1),
+                      ),
+                    )),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 180,
+              child: (!hasData)
+                  ? const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppTheme.primary),
+                      ),
+                    )
+                  : _buildChart(),
+            ),
+            const SizedBox(height: 14),
+            // ── Legend ───────────────────────────────────────────────────
+            Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                const _LegendDot(color: AppTheme.primary, label: 'Price'),
+                if ((crypto.avgBuyPrice as double) > 0)
+                  const _LegendDot(
+                      color: AppTheme.accent, label: 'Your avg cost', dashed: true),
+                const _LegendDot(color: AppTheme.profit, label: 'Your buys'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChart() {
+    final hist = history!;
+    final spots = [
+      for (final p in hist)
+        FlSpot(p.time.millisecondsSinceEpoch.toDouble(), p.price)
+    ];
+    final minX = spots.first.x;
+    final maxX = spots.last.x;
+    final avgBuy = crypto.avgBuyPrice as double;
+
+    // Buy markers within the visible window.
+    final List<TransactionEntity> txs = crypto.transactions;
+    final buySpots = <FlSpot>[];
+    for (final t in txs) {
+      if (t.type == TransactionType.buy && t.pricePerCoin > 0) {
+        final x = t.date.millisecondsSinceEpoch.toDouble();
+        if (x >= minX && x <= maxX) buySpots.add(FlSpot(x, t.pricePerCoin));
+      }
+    }
+    buySpots.sort((a, b) => a.x.compareTo(b.x));
+
+    double minY = hist.first.price, maxY = hist.first.price;
+    for (final p in hist) {
+      if (p.price < minY) minY = p.price;
+      if (p.price > maxY) maxY = p.price;
+    }
+    if (avgBuy > 0) {
+      minY = math.min(minY, avgBuy);
+      maxY = math.max(maxY, avgBuy);
+    }
+    for (final b in buySpots) {
+      minY = math.min(minY, b.y);
+      maxY = math.max(maxY, b.y);
+    }
+    final span = maxY - minY;
+    final pad = span == 0 ? (maxY == 0 ? 1 : maxY * 0.1) : span * 0.10;
+    minY = math.max(0, minY - pad);
+    maxY = maxY + pad;
+
+    final xInterval = (maxX - minX) / 3;
+    final yInterval = (maxY - minY) / 3;
+    final dateFmt = days >= 365 ? DateFormat('MMM yy') : DateFormat('MMM d');
+
+    return LineChart(
+      LineChartData(
+        minX: minX,
+        maxX: maxX,
+        minY: minY,
+        maxY: maxY,
+        clipData: const FlClipData.all(),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: yInterval > 0 ? yInterval : null,
+          getDrawingHorizontalLine: (_) =>
+              const FlLine(color: AppTheme.divider, strokeWidth: 1),
+        ),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 42,
+              interval: yInterval > 0 ? yInterval : null,
+              getTitlesWidget: (v, meta) {
+                if (v <= minY || v >= maxY) return const SizedBox.shrink();
+                return SideTitleWidget(
+                  axisSide: meta.axisSide,
+                  child: Text(_yLabel(v),
+                      style: const TextStyle(
+                          color: AppTheme.textTertiary, fontSize: 9)),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              interval: xInterval > 0 ? xInterval : null,
+              getTitlesWidget: (v, meta) {
+                final d = DateTime.fromMillisecondsSinceEpoch(v.toInt());
+                return SideTitleWidget(
+                  axisSide: meta.axisSide,
+                  child: Text(dateFmt.format(d),
+                      style: const TextStyle(
+                          color: AppTheme.textTertiary, fontSize: 9)),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => AppTheme.surfaceVariant,
+            getTooltipItems: (touched) => touched.map((s) {
+              if (s.barIndex == 1) return null; // suppress buy-marker bar
+              final d = DateTime.fromMillisecondsSinceEpoch(s.x.toInt());
+              return LineTooltipItem(
+                '${Formatters.formatPrice(s.y)}\n${Formatters.formatShortDate(d)}',
+                const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+              );
+            }).toList(),
+          ),
+        ),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            if (avgBuy > 0)
+              HorizontalLine(
+                y: avgBuy,
+                color: AppTheme.accent,
+                strokeWidth: 1.5,
+                dashArray: [6, 4],
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 6, bottom: 2),
+                  style: const TextStyle(
+                      color: AppTheme.accent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700),
+                  labelResolver: (_) => 'Avg ${Formatters.formatPrice(avgBuy)}',
+                ),
+              ),
+          ],
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            curveSmoothness: 0.1,
+            color: AppTheme.primary,
+            barWidth: 2,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.primary.withOpacity(0.25),
+                  AppTheme.primary.withOpacity(0.0),
+                ],
+              ),
+            ),
+          ),
+          if (buySpots.isNotEmpty)
+            LineChartBarData(
+              spots: buySpots,
+              barWidth: 0,
+              color: Colors.transparent,
+              dotData: FlDotData(
+                show: true,
+                getDotPainter: (s, p, b, i) => FlDotCirclePainter(
+                  radius: 4,
+                  color: AppTheme.profit,
+                  strokeColor: Colors.white,
+                  strokeWidth: 1.5,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartRangeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ChartRangeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primary.withOpacity(0.15)
+              : AppTheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? AppTheme.primary : AppTheme.cardBorder,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppTheme.primary : AppTheme.textSecondary,
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool dashed;
+
+  const _LegendDot(
+      {required this.color, required this.label, this.dashed = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dashed
+            ? Container(width: 14, height: 2, color: color)
+            : Container(
+                width: 9,
+                height: 9,
+                decoration:
+                    BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label,
+            style:
+                const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+      ],
     );
   }
 }

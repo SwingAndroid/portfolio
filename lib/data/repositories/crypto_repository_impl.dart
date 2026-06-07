@@ -1,5 +1,6 @@
 import '../../domain/entities/crypto_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../../domain/entities/price_point.dart';
 import '../../domain/repositories/crypto_repository.dart';
 import '../datasources/local/crypto_local_datasource.dart';
 import '../datasources/remote/crypto_remote_datasource.dart';
@@ -97,4 +98,8 @@ class CryptoRepositoryImpl implements CryptoRepository {
   @override
   Future<Map<String, dynamic>?> getCoinDetails(String coinId) =>
       remoteDatasource.getCoinDetails(coinId);
+
+  @override
+  Future<List<PricePoint>> getMarketChart(String coinId, {int days = 90}) =>
+      remoteDatasource.getMarketChart(coinId, days: days);
 }

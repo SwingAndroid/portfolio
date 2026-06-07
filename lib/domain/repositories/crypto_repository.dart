@@ -1,5 +1,6 @@
 import '../entities/crypto_entity.dart';
 import '../entities/transaction_entity.dart';
+import '../entities/price_point.dart';
 
 abstract class CryptoRepository {
   Future<List<CryptoEntity>> getPortfolio();
@@ -11,4 +12,5 @@ abstract class CryptoRepository {
   Future<double> getCryptoPrice(String coinId);
   Future<List<Map<String, dynamic>>> searchCoins(String query);
   Future<Map<String, dynamic>?> getCoinDetails(String coinId);
+  Future<List<PricePoint>> getMarketChart(String coinId, {int days});
 }

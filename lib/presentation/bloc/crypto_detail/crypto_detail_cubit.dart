@@ -22,10 +22,11 @@ class CryptoDetailCubit extends Cubit<CryptoDetailState> {
     try {
       final crypto = await repository.getCryptoById(cryptoId);
       if (crypto != null) {
-        emit(CryptoDetailLoaded(crypto));
-        // Fetch richer market data (ATH, trends) in the background for the
-        // Entry Signal. Never let this break the page if the API is down.
+        emit(CryptoDetailLoaded(crypto, chartLoading: true));
+        // Fetch richer market data (ATH, trends) + price history in the
+        // background. Never let these break the page if the API is down.
         _loadMarketData(crypto.coinId);
+        loadChart(crypto.coinId, 90);
       } else {
         emit(const CryptoDetailError('Crypto not found'));
       }
@@ -46,6 +47,29 @@ class CryptoDetailCubit extends Cubit<CryptoDetailState> {
       }
     } catch (_) {
       // Entry Signal degrades gracefully to cost-basis-only.
+    }
+  }
+
+  /// Loads price history for the given range (days) and updates the chart.
+  Future<void> loadChart(String coinId, int days) async {
+    final current = state;
+    if (current is! CryptoDetailLoaded) return;
+    emit(current.copyWith(chartDays: days, chartLoading: true));
+    try {
+      final history = await repository.getMarketChart(coinId, days: days);
+      final now = state;
+      if (now is CryptoDetailLoaded) {
+        emit(now.copyWith(
+          priceHistory: history,
+          chartDays: days,
+          chartLoading: false,
+        ));
+      }
+    } catch (_) {
+      final now = state;
+      if (now is CryptoDetailLoaded) {
+        emit(now.copyWith(chartLoading: false));
+      }
     }
   }
 
