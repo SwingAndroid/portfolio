@@ -61,6 +61,50 @@ class CryptoEntity extends Equatable {
     return (totalBought - totalProceeds) / totalHoldings;
   }
 
+  // ── Realized / Unrealized P&L ─────────────────────────────────────────────
+
+  /// Weighted-average price paid across actual buy transactions (no transfers).
+  double get avgBuyPrice {
+    final buys = transactions.where((t) => t.type == TransactionType.buy);
+    final totalQty = buys.fold(0.0, (s, t) => s + t.quantity);
+    if (totalQty == 0) return 0;
+    final totalSpent = buys.fold(0.0, (s, t) => s + t.quantity * t.pricePerCoin);
+    return totalSpent / totalQty;
+  }
+
+  /// Total quantity sold across all sell transactions.
+  double get totalSoldQuantity {
+    return transactions
+        .where((t) => t.type == TransactionType.sell)
+        .fold(0.0, (s, t) => s + t.quantity);
+  }
+
+  /// Profit/loss already locked in from completed sell transactions.
+  /// realizedPnl = proceeds − (soldQty × avgBuyPrice)
+  double get realizedPnl {
+    if (avgBuyPrice == 0) return 0;
+    return totalProceeds - (totalSoldQuantity * avgBuyPrice);
+  }
+
+  double get realizedPnlPercent {
+    final cost = totalSoldQuantity * avgBuyPrice;
+    if (cost == 0) return 0;
+    return (realizedPnl / cost) * 100;
+  }
+
+  /// Paper gain/loss on holdings still held.
+  /// unrealizedPnl = currentValue − (holdingsQty × avgBuyPrice)
+  double get unrealizedPnl {
+    if (currentPrice == 0 || avgBuyPrice == 0) return 0;
+    return holdingsValue - (totalHoldings * avgBuyPrice);
+  }
+
+  double get unrealizedPnlPercent {
+    final cost = totalHoldings * avgBuyPrice;
+    if (cost == 0) return 0;
+    return (unrealizedPnl / cost) * 100;
+  }
+
   /// Lowest price paid across all buy transactions (transfers excluded).
   double get minBuyPrice {
     final prices = transactions

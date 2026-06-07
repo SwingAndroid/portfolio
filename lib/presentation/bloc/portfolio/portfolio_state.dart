@@ -31,6 +31,11 @@ class PortfolioLoaded extends PortfolioState {
 
   int get numAssets => cryptos.length;
 
+  double get totalRealizedPnl =>
+      cryptos.fold(0, (sum, c) => sum + c.realizedPnl);
+  double get totalUnrealizedPnl =>
+      cryptos.fold(0, (sum, c) => sum + c.unrealizedPnl);
+
   CryptoEntity? get bestPerformer {
     if (cryptos.isEmpty) return null;
     return cryptos.reduce((a, b) =>

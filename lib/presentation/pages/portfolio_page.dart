@@ -346,6 +346,24 @@ class _DesktopOverviewCard extends StatelessWidget {
                   valueColor: AppTheme.loss,
                 ),
               ],
+              _divider(),
+              _OverviewStat(
+                icon: Icons.hourglass_bottom_rounded,
+                label: 'Unrealized P&L',
+                value: Formatters.formatCurrencyWithSign(state.totalUnrealizedPnl),
+                valueColor: state.totalUnrealizedPnl >= 0
+                    ? AppTheme.profit
+                    : AppTheme.loss,
+              ),
+              _divider(),
+              _OverviewStat(
+                icon: Icons.lock_outline_rounded,
+                label: 'Realized P&L',
+                value: Formatters.formatCurrencyWithSign(state.totalRealizedPnl),
+                valueColor: state.totalRealizedPnl >= 0
+                    ? AppTheme.profit
+                    : AppTheme.loss,
+              ),
             ],
           ),
         ],

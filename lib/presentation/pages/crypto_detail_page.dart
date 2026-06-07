@@ -387,6 +387,11 @@ class _CryptoDetailView extends StatelessWidget {
             ],
           ),
         ),
+        // ── Realized / Unrealized P&L card ────────────────────────────────
+        if (crypto.totalSoldQuantity > 0 || crypto.currentPrice > 0) ...[
+          const SizedBox(height: 12),
+          _PnlBreakdownCard(crypto: crypto),
+        ],
         // ── Price analysis card ─────────────────────────────────────────────
         if (crypto.currentPrice > 0 && crypto.minBuyPrice > 0) ...[
           const SizedBox(height: 12),
@@ -526,6 +531,169 @@ class _CryptoDetailView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Realized / Unrealized P&L card ──────────────────────────────────────────
+
+class _PnlBreakdownCard extends StatelessWidget {
+  final dynamic crypto;
+  const _PnlBreakdownCard({required this.crypto});
+
+  @override
+  Widget build(BuildContext context) {
+    final unrealized = crypto.unrealizedPnl as double;
+    final unrealizedPct = crypto.unrealizedPnlPercent as double;
+    final realized = crypto.realizedPnl as double;
+    final realizedPct = crypto.realizedPnlPercent as double;
+    final hasRealized = (crypto.totalSoldQuantity as double) > 0;
+    final hasUnrealized = (crypto.currentPrice as double) > 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bar_chart_rounded, color: AppTheme.primary, size: 18),
+              SizedBox(width: 6),
+              Text('P&L Breakdown',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Unrealized
+              if (hasUnrealized)
+                Expanded(
+                  child: _PnlPanel(
+                    label: 'UNREALIZED',
+                    sublabel: 'Paper gain on holdings',
+                    amount: unrealized,
+                    percent: unrealizedPct,
+                    icon: Icons.hourglass_bottom_rounded,
+                  ),
+                ),
+              if (hasUnrealized && hasRealized)
+                Container(
+                    width: 1,
+                    height: 60,
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    color: AppTheme.divider),
+              // Realized
+              if (hasRealized)
+                Expanded(
+                  child: _PnlPanel(
+                    label: 'REALIZED',
+                    sublabel: 'Locked in from sells',
+                    amount: realized,
+                    percent: realizedPct,
+                    icon: Icons.lock_outline_rounded,
+                  ),
+                ),
+            ],
+          ),
+          // Total check row
+          if (hasUnrealized && hasRealized) ...[
+            const SizedBox(height: 14),
+            const Divider(color: AppTheme.divider, height: 1),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Combined P&L',
+                    style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+                Text(
+                  Formatters.formatCurrencyWithSign(unrealized + realized),
+                  style: TextStyle(
+                    color: (unrealized + realized) >= 0
+                        ? AppTheme.profit
+                        : AppTheme.loss,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PnlPanel extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final double amount;
+  final double percent;
+  final IconData icon;
+
+  const _PnlPanel({
+    required this.label,
+    required this.sublabel,
+    required this.amount,
+    required this.percent,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = amount >= 0;
+    final color = isPositive ? AppTheme.profit : AppTheme.loss;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 11, color: AppTheme.textTertiary),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(
+                    color: AppTheme.textTertiary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(sublabel,
+            style: const TextStyle(
+                color: AppTheme.textTertiary, fontSize: 10)),
+        const SizedBox(height: 8),
+        Text(
+          Formatters.formatCurrencyWithSign(amount),
+          style: TextStyle(
+              color: color, fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            '${isPositive ? '▲' : '▼'} ${percent.abs().toStringAsFixed(2)}%',
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 }
