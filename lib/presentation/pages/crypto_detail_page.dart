@@ -361,7 +361,7 @@ class _CryptoDetailView extends StatelessWidget {
 
   Widget _backButton(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.pop(),
+      onTap: () => context.canPop() ? context.pop() : context.go('/'),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
