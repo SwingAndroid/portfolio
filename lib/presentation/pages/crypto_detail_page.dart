@@ -10,6 +10,8 @@ import '../bloc/crypto_detail/crypto_detail_state.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../../domain/entities/market_data.dart';
+import '../../domain/entities/entry_signal.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../widgets/stat_row.dart';
@@ -88,7 +90,8 @@ class _CryptoDetailView extends StatelessWidget {
                 padding: EdgeInsets.symmetric(
                     horizontal: isWide ? 24 : 16, vertical: 8),
                 children: [
-                  _holdingsCard(context, crypto, isProfit, pnlColor),
+                  _holdingsCard(context, crypto, isProfit, pnlColor,
+                      state.marketData),
                   const SizedBox(height: 24),
                   _TransactionSection(
                     transactions: crypto.transactions,
@@ -154,7 +157,8 @@ class _CryptoDetailView extends StatelessWidget {
                     child: ListView(
                       padding: const EdgeInsets.all(28),
                       children: [
-                        _holdingsCard(context, crypto, isProfit, pnlColor),
+                        _holdingsCard(context, crypto, isProfit, pnlColor,
+                            state.marketData),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: () => _showAddTransaction(
@@ -275,9 +279,20 @@ class _CryptoDetailView extends StatelessWidget {
   }
 
   Widget _holdingsCard(BuildContext context, dynamic crypto, bool isProfit,
-      Color pnlColor) {
+      Color pnlColor, MarketData? marketData) {
+    final signal = EntrySignal.compute(
+      currentPrice: crypto.currentPrice as double,
+      avgBuyPrice: crypto.avgBuyPrice as double,
+      athChangePercent: marketData?.athChangePercent,
+      change30d: marketData?.change30d,
+    );
     return Column(
       children: [
+        // ── Entry Signal card (DCA "should I add now?") ─────────────────────
+        if (signal.hasData) ...[
+          _EntrySignalCard(signal: signal),
+          const SizedBox(height: 12),
+        ],
         // ── Holdings card ───────────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(20),
@@ -979,6 +994,217 @@ class _PriceAnalysisCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Entry Signal card (DCA decision helper) ─────────────────────────────────
+
+class _EntrySignalCard extends StatelessWidget {
+  final EntrySignal signal;
+  const _EntrySignalCard({required this.signal});
+
+  static const Color _gold = Color(0xFFFFD700);
+  static const Color _orange = Color(0xFFFF9800);
+
+  Color get _color => switch (signal.level) {
+        EntryLevel.strong => AppTheme.profit,
+        EntryLevel.good => AppTheme.primary,
+        EntryLevel.fair => _gold,
+        EntryLevel.wait => _orange,
+        EntryLevel.expensive => AppTheme.loss,
+      };
+
+  String get _label => switch (signal.level) {
+        EntryLevel.strong => 'STRONG ENTRY',
+        EntryLevel.good => 'GOOD ENTRY',
+        EntryLevel.fair => 'FAIR',
+        EntryLevel.wait => 'WAIT',
+        EntryLevel.expensive => 'EXPENSIVE',
+      };
+
+  String get _summary => switch (signal.level) {
+        EntryLevel.strong => 'Conditions look favourable to add.',
+        EntryLevel.good => 'A reasonable spot to DCA in.',
+        EntryLevel.fair => 'Neutral — neither cheap nor rich.',
+        EntryLevel.wait => 'A little rich vs your usual entries.',
+        EntryLevel.expensive => 'Looks expensive right now.',
+      };
+
+  IconData get _icon => switch (signal.level) {
+        EntryLevel.strong => Icons.trending_up_rounded,
+        EntryLevel.good => Icons.thumb_up_outlined,
+        EntryLevel.fair => Icons.remove_rounded,
+        EntryLevel.wait => Icons.schedule_rounded,
+        EntryLevel.expensive => Icons.trending_down_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──────────────────────────────────────────────────────
+          const Row(
+            children: [
+              Icon(Icons.auto_graph_rounded, color: AppTheme.primary, size: 18),
+              SizedBox(width: 6),
+              Text('Entry Signal',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600)),
+              SizedBox(width: 6),
+              Text('· DCA',
+                  style: TextStyle(
+                      color: AppTheme.textTertiary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── Score + verdict ─────────────────────────────────────────────
+          Row(
+            children: [
+              // Score dial
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: CircularProgressIndicator(
+                        value: signal.score / 100,
+                        strokeWidth: 6,
+                        backgroundColor: AppTheme.surfaceVariant,
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    ),
+                    Text(
+                      signal.score.round().toString(),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_icon, color: color, size: 14),
+                          const SizedBox(width: 5),
+                          Text(
+                            _label,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _summary,
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: AppTheme.divider, height: 1),
+          const SizedBox(height: 12),
+          // ── Factor breakdown ────────────────────────────────────────────
+          ...signal.factors.map((f) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _FactorRow(factor: f),
+              )),
+          const SizedBox(height: 2),
+          const Text(
+            'Heuristic guide, not financial advice.',
+            style: TextStyle(color: AppTheme.textTertiary, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FactorRow extends StatelessWidget {
+  final SignalFactor factor;
+  const _FactorRow({required this.factor});
+
+  Color _scoreColor(double s) {
+    if (s >= 70) return AppTheme.profit;
+    if (s >= 45) return const Color(0xFFFFD700);
+    if (s >= 30) return const Color(0xFFFF9800);
+    return AppTheme.loss;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _scoreColor(factor.score);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              factor.label,
+              style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600),
+            ),
+            Text(
+              factor.detail,
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 11),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: factor.score / 100,
+            backgroundColor: AppTheme.surfaceVariant,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 5,
+          ),
+        ),
+      ],
     );
   }
 }

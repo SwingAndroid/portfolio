@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../domain/entities/market_data.dart';
 import '../../../domain/entities/transaction_entity.dart';
 import '../../../domain/usecases/add_transaction_usecase.dart';
 import '../../../domain/usecases/delete_transaction_usecase.dart';
@@ -22,11 +23,29 @@ class CryptoDetailCubit extends Cubit<CryptoDetailState> {
       final crypto = await repository.getCryptoById(cryptoId);
       if (crypto != null) {
         emit(CryptoDetailLoaded(crypto));
+        // Fetch richer market data (ATH, trends) in the background for the
+        // Entry Signal. Never let this break the page if the API is down.
+        _loadMarketData(crypto.coinId);
       } else {
         emit(const CryptoDetailError('Crypto not found'));
       }
     } catch (e) {
       emit(CryptoDetailError(e.toString()));
+    }
+  }
+
+  Future<void> _loadMarketData(String coinId) async {
+    try {
+      final details = await repository.getCoinDetails(coinId);
+      if (details == null) return;
+      final md = MarketData.fromCoinDetails(details);
+      if (md == null) return;
+      final current = state;
+      if (current is CryptoDetailLoaded) {
+        emit(current.copyWith(marketData: md));
+      }
+    } catch (_) {
+      // Entry Signal degrades gracefully to cost-basis-only.
     }
   }
 
