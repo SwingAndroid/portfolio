@@ -9,6 +9,7 @@ import '../bloc/crypto_detail/crypto_detail_cubit.dart';
 import '../bloc/crypto_detail/crypto_detail_state.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
+import '../../domain/entities/transaction_entity.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../widgets/stat_row.dart';
@@ -89,7 +90,19 @@ class _CryptoDetailView extends StatelessWidget {
                 children: [
                   _holdingsCard(context, crypto, isProfit, pnlColor),
                   const SizedBox(height: 24),
-                  _transactionsSection(context, crypto),
+                  _TransactionSection(
+                    transactions: crypto.transactions,
+                    cryptoSymbol: crypto.symbol,
+                    isScrollable: false,
+                    padding: EdgeInsets.zero,
+                    onDeleteTx: (tx) async {
+                      final confirm = await _confirmDelete(context);
+                      if (confirm == true && context.mounted) {
+                        context.read<CryptoDetailCubit>().removeTransaction(tx.id);
+                        context.read<PortfolioBloc>().add(const RefreshPortfolioEvent());
+                      }
+                    },
+                  ),
                   const SizedBox(height: 100),
                 ],
               ),
@@ -163,75 +176,20 @@ class _CryptoDetailView extends StatelessWidget {
                     ),
                   ),
                   const VerticalDivider(width: 1, color: AppTheme.divider),
-                  // Right panel: transaction history
+                  // Right panel: transaction history with filters
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Transaction History',
-                                style: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                '${crypto.transactions.length} total',
-                                style: const TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: crypto.transactions.isEmpty
-                              ? const Center(
-                                  child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.receipt_long_outlined,
-                                          color: AppTheme.textTertiary,
-                                          size: 40),
-                                      SizedBox(height: 12),
-                                      Text('No transactions yet',
-                                          style: TextStyle(
-                                              color: AppTheme.textSecondary)),
-                                    ],
-                                  ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 28),
-                                  itemCount: crypto.transactions.length,
-                                  itemBuilder: (ctx, i) => TransactionTile(
-                                    transaction: crypto.transactions[i],
-                                    cryptoSymbol: crypto.symbol,
-                                    onDelete: () async {
-                                      final confirm =
-                                          await _confirmDelete(context);
-                                      if (confirm == true &&
-                                          context.mounted) {
-                                        context
-                                            .read<CryptoDetailCubit>()
-                                            .removeTransaction(
-                                                crypto.transactions[i].id);
-                                        context
-                                            .read<PortfolioBloc>()
-                                            .add(const RefreshPortfolioEvent());
-                                      }
-                                    },
-                                  ),
-                                ),
-                        ),
-                      ],
+                    child: _TransactionSection(
+                      transactions: crypto.transactions,
+                      cryptoSymbol: crypto.symbol,
+                      isScrollable: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      onDeleteTx: (tx) async {
+                        final confirm = await _confirmDelete(context);
+                        if (confirm == true && context.mounted) {
+                          context.read<CryptoDetailCubit>().removeTransaction(tx.id);
+                          context.read<PortfolioBloc>().add(const RefreshPortfolioEvent());
+                        }
+                      },
                     ),
                   ),
                 ],
@@ -401,62 +359,6 @@ class _CryptoDetailView extends StatelessWidget {
     );
   }
 
-  Widget _transactionsSection(BuildContext context, dynamic crypto) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Transactions History',
-                style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600)),
-            Text('${crypto.transactions.length} total',
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (crypto.transactions.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.receipt_long_outlined,
-                      color: AppTheme.textTertiary, size: 40),
-                  SizedBox(height: 12),
-                  Text('No transactions yet',
-                      style: TextStyle(color: AppTheme.textSecondary)),
-                ],
-              ),
-            ),
-          )
-        else
-          ...crypto.transactions.map((tx) => Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: TransactionTile(
-                  transaction: tx,
-                  cryptoSymbol: crypto.symbol,
-                  onDelete: () async {
-                    final confirm = await _confirmDelete(context);
-                    if (confirm == true && context.mounted) {
-                      context
-                          .read<CryptoDetailCubit>()
-                          .removeTransaction(tx.id);
-                      context
-                          .read<PortfolioBloc>()
-                          .add(const RefreshPortfolioEvent());
-                    }
-                  },
-                ),
-              )),
-      ],
-    );
-  }
-
   Widget _backButton(BuildContext context) {
     return GestureDetector(
       onTap: () => context.pop(),
@@ -530,6 +432,296 @@ class _CryptoDetailView extends StatelessWidget {
             child: const Text('Delete', style: TextStyle(color: AppTheme.loss)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Transaction section with filters + sort ─────────────────────────────────
+
+enum _TxSort { newest, oldest, highestValue, lowestValue }
+
+class _TransactionSection extends StatefulWidget {
+  final List<TransactionEntity> transactions;
+  final String cryptoSymbol;
+  final bool isScrollable;
+  final EdgeInsets padding;
+  final Future<void> Function(TransactionEntity tx) onDeleteTx;
+
+  const _TransactionSection({
+    required this.transactions,
+    required this.cryptoSymbol,
+    required this.isScrollable,
+    required this.padding,
+    required this.onDeleteTx,
+  });
+
+  @override
+  State<_TransactionSection> createState() => _TransactionSectionState();
+}
+
+class _TransactionSectionState extends State<_TransactionSection> {
+  TransactionType? _filter; // null = All
+  _TxSort _sort = _TxSort.newest;
+
+  List<TransactionEntity> get _filtered {
+    var list = [...widget.transactions];
+    if (_filter != null) {
+      list = list.where((t) => t.type == _filter).toList();
+    }
+    switch (_sort) {
+      case _TxSort.newest:
+        list.sort((a, b) => b.date.compareTo(a.date));
+      case _TxSort.oldest:
+        list.sort((a, b) => a.date.compareTo(b.date));
+      case _TxSort.highestValue:
+        list.sort((a, b) => b.totalValue.compareTo(a.totalValue));
+      case _TxSort.lowestValue:
+        list.sort((a, b) => a.totalValue.compareTo(b.totalValue));
+    }
+    return list;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    final total = widget.transactions.length;
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ──────────────────────────────────────────────────────
+        Padding(
+          padding: widget.isScrollable
+              ? const EdgeInsets.fromLTRB(0, 28, 0, 0)
+              : EdgeInsets.zero,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Transaction History',
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700),
+              ),
+              Text(
+                _filter == null
+                    ? '$total transactions'
+                    : '${filtered.length} of $total',
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        // ── Filter chips ─────────────────────────────────────────────────
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _FilterChip(
+                label: 'All',
+                selected: _filter == null,
+                color: AppTheme.primary,
+                onTap: () => setState(() => _filter = null),
+              ),
+              const SizedBox(width: 6),
+              _FilterChip(
+                label: 'Buy',
+                selected: _filter == TransactionType.buy,
+                color: AppTheme.profit,
+                onTap: () => setState(() => _filter = _filter == TransactionType.buy ? null : TransactionType.buy),
+              ),
+              const SizedBox(width: 6),
+              _FilterChip(
+                label: 'Sell',
+                selected: _filter == TransactionType.sell,
+                color: AppTheme.loss,
+                onTap: () => setState(() => _filter = _filter == TransactionType.sell ? null : TransactionType.sell),
+              ),
+              const SizedBox(width: 6),
+              _FilterChip(
+                label: 'Transfer In',
+                selected: _filter == TransactionType.transferIn,
+                color: const Color(0xFF3D8BFF),
+                onTap: () => setState(() => _filter = _filter == TransactionType.transferIn ? null : TransactionType.transferIn),
+              ),
+              const SizedBox(width: 6),
+              _FilterChip(
+                label: 'Transfer Out',
+                selected: _filter == TransactionType.transferOut,
+                color: const Color(0xFFFF9800),
+                onTap: () => setState(() => _filter = _filter == TransactionType.transferOut ? null : TransactionType.transferOut),
+              ),
+              const SizedBox(width: 12),
+              // Sort dropdown
+              _SortButton(
+                current: _sort,
+                onChanged: (s) => setState(() => _sort = s),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(color: AppTheme.divider, height: 1),
+        const SizedBox(height: 4),
+        // ── Transaction list ─────────────────────────────────────────────
+        if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Column(
+                children: [
+                  const Icon(Icons.filter_list_off,
+                      color: AppTheme.textTertiary, size: 36),
+                  const SizedBox(height: 10),
+                  Text(
+                    _filter == null
+                        ? 'No transactions yet'
+                        : 'No ${_filter!.name} transactions',
+                    style: const TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (widget.isScrollable)
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: filtered.length,
+              itemBuilder: (ctx, i) => TransactionTile(
+                transaction: filtered[i],
+                cryptoSymbol: widget.cryptoSymbol,
+                onDelete: () => widget.onDeleteTx(filtered[i]),
+              ),
+            ),
+          )
+        else
+          ...filtered.map((tx) => Padding(
+                padding: const EdgeInsets.only(bottom: 1),
+                child: TransactionTile(
+                  transaction: tx,
+                  cryptoSymbol: widget.cryptoSymbol,
+                  onDelete: () => widget.onDeleteTx(tx),
+                ),
+              )),
+      ],
+    );
+
+    if (widget.isScrollable) {
+      return Padding(
+        padding: widget.padding,
+        child: content,
+      );
+    }
+    return content;
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.15) : AppTheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? color : AppTheme.cardBorder,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? color : AppTheme.textSecondary,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SortButton extends StatelessWidget {
+  final _TxSort current;
+  final ValueChanged<_TxSort> onChanged;
+
+  const _SortButton({required this.current, required this.onChanged});
+
+  String get _label => switch (current) {
+        _TxSort.newest => 'Newest',
+        _TxSort.oldest => 'Oldest',
+        _TxSort.highestValue => 'Highest \$',
+        _TxSort.lowestValue => 'Lowest \$',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final result = await showMenu<_TxSort>(
+          context: context,
+          color: AppTheme.surface,
+          position: RelativeRect.fromLTRB(
+            MediaQuery.of(context).size.width,
+            kToolbarHeight,
+            0,
+            0,
+          ),
+          items: const [
+            PopupMenuItem(value: _TxSort.newest, child: Text('Newest first', style: TextStyle(color: AppTheme.textPrimary))),
+            PopupMenuItem(value: _TxSort.oldest, child: Text('Oldest first', style: TextStyle(color: AppTheme.textPrimary))),
+            PopupMenuItem(value: _TxSort.highestValue, child: Text('Highest value', style: TextStyle(color: AppTheme.textPrimary))),
+            PopupMenuItem(value: _TxSort.lowestValue, child: Text('Lowest value', style: TextStyle(color: AppTheme.textPrimary))),
+          ],
+        );
+        if (result != null) onChanged(result);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.cardBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort_rounded,
+                color: AppTheme.textSecondary, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              _label,
+              style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(width: 3),
+            const Icon(Icons.arrow_drop_down,
+                color: AppTheme.textTertiary, size: 14),
+          ],
+        ),
       ),
     );
   }
