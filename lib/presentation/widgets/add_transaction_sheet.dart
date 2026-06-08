@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatters.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../bloc/crypto_detail/crypto_detail_cubit.dart';
 
@@ -26,6 +28,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   DateTime _date = DateTime.now();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  // Allow digits plus both decimal separators ('.' and ',') so locales that
+  // use a comma on the numeric keyboard (e.g. "16,0") can type freely.
+  static final _numberFormatters = [
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+  ];
 
   // ── type metadata ──────────────────────────────────────────────────────────
 
@@ -118,6 +126,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   controller: _quantityCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: _numberFormatters,
                   style: const TextStyle(color: AppTheme.textPrimary),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
@@ -126,7 +135,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Enter quantity';
-                    if (double.tryParse(v) == null || double.parse(v) <= 0) {
+                    final parsed = Formatters.tryParseNum(v);
+                    if (parsed == null || parsed <= 0) {
                       return 'Enter a valid quantity';
                     }
                     return null;
@@ -139,6 +149,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   controller: _priceCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: _numberFormatters,
                   style: const TextStyle(color: AppTheme.textPrimary),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
@@ -159,14 +170,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     if (_isTransfer) {
                       // Allow empty or zero for transfers
                       if (v != null && v.isNotEmpty) {
-                        if (double.tryParse(v) == null || double.parse(v) < 0) {
+                        final parsed = Formatters.tryParseNum(v);
+                        if (parsed == null || parsed < 0) {
                           return 'Enter a valid amount';
                         }
                       }
                       return null;
                     }
                     if (v == null || v.isEmpty) return 'Enter price';
-                    if (double.tryParse(v) == null || double.parse(v) < 0) {
+                    final parsed = Formatters.tryParseNum(v);
+                    if (parsed == null || parsed < 0) {
                       return 'Enter a valid price';
                     }
                     return null;
@@ -208,7 +221,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 // Total preview (only when price is set)
                 if (_quantityCtrl.text.isNotEmpty &&
                     _priceCtrl.text.isNotEmpty &&
-                    (double.tryParse(_priceCtrl.text) ?? 0) > 0)
+                    (Formatters.tryParseNum(_priceCtrl.text) ?? 0) > 0)
                   _buildTotalPreview(),
 
                 const SizedBox(height: 8),
@@ -304,8 +317,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Widget _buildTotalPreview() {
-    final qty = double.tryParse(_quantityCtrl.text) ?? 0;
-    final price = double.tryParse(_priceCtrl.text) ?? 0;
+    final qty = Formatters.tryParseNum(_quantityCtrl.text) ?? 0;
+    final price = Formatters.tryParseNum(_priceCtrl.text) ?? 0;
     final total = qty * price;
 
     return Container(
@@ -360,13 +373,14 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
     // For transfers, price is optional — default to 0 if empty
     final priceText = _priceCtrl.text.trim();
-    final pricePerCoin = priceText.isEmpty ? 0.0 : double.parse(priceText);
+    final pricePerCoin =
+        priceText.isEmpty ? 0.0 : (Formatters.tryParseNum(priceText) ?? 0.0);
 
     final transaction = TransactionEntity(
       id: const Uuid().v4(),
       cryptoId: widget.cryptoId,
       type: _type,
-      quantity: double.parse(_quantityCtrl.text),
+      quantity: Formatters.tryParseNum(_quantityCtrl.text) ?? 0,
       pricePerCoin: pricePerCoin,
       date: _date,
     );

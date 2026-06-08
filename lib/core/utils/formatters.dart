@@ -50,4 +50,33 @@ class Formatters {
     if (price < 1) return '\$${price.toStringAsFixed(4)}';
     return _currencyFormat.format(price);
   }
+
+  /// Locale-tolerant number parsing for user input.
+  ///
+  /// Accepts both `.` and `,` as the decimal separator (mobile numeric
+  /// keyboards in many locales emit `,`, e.g. "16,0"). Also strips a
+  /// thousands separator when both symbols are present (e.g. "1,234.56"
+  /// or "1.234,56"). Returns null when the input is empty or not a number.
+  static double? tryParseNum(String? input) {
+    if (input == null) return null;
+    var s = input.trim().replaceAll(' ', '').replaceAll(' ', '');
+    if (s.isEmpty) return null;
+
+    final hasComma = s.contains(',');
+    final hasDot = s.contains('.');
+
+    if (hasComma && hasDot) {
+      // Whichever separator comes last is the decimal one; the other is
+      // a thousands separator and gets removed.
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+        s = s.replaceAll('.', '').replaceAll(',', '.');
+      } else {
+        s = s.replaceAll(',', '');
+      }
+    } else if (hasComma) {
+      s = s.replaceAll(',', '.');
+    }
+
+    return double.tryParse(s);
+  }
 }
