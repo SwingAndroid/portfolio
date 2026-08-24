@@ -58,6 +58,11 @@ class CostBasisLedger {
   /// Every sale, in the order it happened.
   final List<Disposal> disposals;
 
+  /// Value of coins received as income — staking, airdrops — measured at the
+  /// moment each one landed. Taxed as income in most places, and separate
+  /// from any capital gain made when they are later sold.
+  final double income;
+
   const CostBasisLedger({
     required this.realizedPnl,
     required this.proceeds,
@@ -65,6 +70,7 @@ class CostBasisLedger {
     required this.remainingQuantity,
     required this.remainingCost,
     this.disposals = const [],
+    this.income = 0,
   });
 
   static const empty = CostBasisLedger(
@@ -110,6 +116,7 @@ class CostBasisLedger {
     var proceeds = 0.0;
     var costOfSold = 0.0;
     final disposals = <Disposal>[];
+    var income = 0.0;
 
     for (final t in ordered) {
       switch (t.type) {
@@ -118,6 +125,15 @@ class CostBasisLedger {
           qty += t.quantity;
           // The fee is part of what acquiring these units cost.
           cost += t.grossCost;
+
+        case TransactionType.reward:
+          // Income arrives free but not without a basis: it is taxed at the
+          // value it had on arrival, and that value is what a later sale is
+          // measured against. Booking it at zero would tax the same coins
+          // twice — once as income, then again as pure gain.
+          qty += t.quantity;
+          cost += t.grossCost;
+          income += t.incomeValue;
 
         case TransactionType.sell:
           final avg = qty > 0 ? cost / qty : 0.0;
@@ -161,6 +177,7 @@ class CostBasisLedger {
       remainingQuantity: qty,
       remainingCost: cost < 0 ? 0 : cost,
       disposals: disposals,
+      income: income,
     );
   }
 }

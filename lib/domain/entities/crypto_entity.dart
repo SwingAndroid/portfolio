@@ -31,12 +31,19 @@ class CryptoEntity extends Equatable {
 
   double get holdingsValue => totalHoldings * currentPrice;
 
+  /// Capital engaged: everything paid in, less everything taken out.
+  ///
+  /// Fees count, because they were paid. Rewards do not, because they were
+  /// not — see [TransactionEntity.capitalIn].
   double get totalCost {
     return transactions.fold(0.0, (sum, t) {
-      if (t.type.addsHoldings) return sum + (t.quantity * t.pricePerCoin);
-      return sum - (t.quantity * t.pricePerCoin);
+      if (t.type.addsHoldings) return sum + t.capitalIn;
+      return sum - t.netProceeds;
     });
   }
+
+  /// Value of everything received as staking or airdrop income.
+  double get incomeReceived => ledger.income;
 
   double get totalBought {
     return transactions

@@ -89,11 +89,11 @@ Future<void> showBackupSheet(BuildContext context) async {
                   _ExportButton(
                     icon: Icons.receipt_long_outlined,
                     label: 'Realized gains (CSV)',
-                    hint: report.isEmpty
+                    hint: report.disposals.isEmpty
                         ? 'No sales recorded yet'
                         : '${report.disposals.length} disposals, for a return',
                     payload: disposalsCsv(report),
-                    enabled: !report.isEmpty,
+                    enabled: report.disposals.isNotEmpty,
                   ),
                   const SizedBox(height: 20),
                   const Text(
@@ -152,7 +152,7 @@ class _RealizedGains extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Realized gains by year',
+            'Realized by year',
             style: TextStyle(
               color: AppTheme.textPrimary,
               fontSize: 13,
@@ -161,7 +161,8 @@ class _RealizedGains extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Sales only. Moving coins between wallets is not a disposal.',
+            'Gains from sales, and income from rewards — usually taxed '
+            'separately. Moving coins between wallets is neither.',
             style: TextStyle(color: AppTheme.textTertiary, fontSize: 10),
           ),
           const SizedBox(height: 12),
@@ -190,13 +191,28 @@ class _RealizedGains extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Text(
-                    Formatters.formatCurrencyWithSign(year.gain),
-                    style: TextStyle(
-                      color: year.gain >= 0 ? AppTheme.profit : AppTheme.loss,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        Formatters.formatCurrencyWithSign(year.gain),
+                        style: TextStyle(
+                          color:
+                              year.gain >= 0 ? AppTheme.profit : AppTheme.loss,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (year.income > 0)
+                        Text(
+                          '+${Formatters.formatCurrency(year.income)} income',
+                          style: const TextStyle(
+                            color: Color(0xFFA855F7),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -213,14 +229,29 @@ class _RealizedGains extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text(
-                Formatters.formatCurrencyWithSign(report.totalGain),
-                style: TextStyle(
-                  color:
-                      report.totalGain >= 0 ? AppTheme.profit : AppTheme.loss,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    Formatters.formatCurrencyWithSign(report.totalGain),
+                    style: TextStyle(
+                      color: report.totalGain >= 0
+                          ? AppTheme.profit
+                          : AppTheme.loss,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (report.totalIncome > 0)
+                    Text(
+                      '+${Formatters.formatCurrency(report.totalIncome)} income',
+                      style: const TextStyle(
+                        color: Color(0xFFA855F7),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -230,9 +261,16 @@ class _RealizedGains extends StatelessWidget {
   }
 
   static String _describe(TaxYearSummary year) {
-    final plural = year.disposalCount == 1 ? 'sale' : 'sales';
-    return '${year.disposalCount} $plural · '
-        '${Formatters.formatCurrency(year.proceeds)} in';
+    final parts = <String>[];
+    if (year.disposalCount > 0) {
+      final plural = year.disposalCount == 1 ? 'sale' : 'sales';
+      parts.add('${year.disposalCount} $plural');
+    }
+    if (year.incomeCount > 0) {
+      final plural = year.incomeCount == 1 ? 'reward' : 'rewards';
+      parts.add('${year.incomeCount} $plural');
+    }
+    return parts.join(' · ');
   }
 }
 

@@ -19,23 +19,51 @@ class RealizedDisposal {
   double get gain => disposal.gain;
 }
 
+/// Coins received as income, valued when they landed.
+class IncomeEvent {
+  final String symbol;
+  final DateTime date;
+  final double quantity;
+  final double value;
+
+  const IncomeEvent({
+    required this.symbol,
+    required this.date,
+    required this.quantity,
+    required this.value,
+  });
+
+  int get taxYear => date.year;
+}
+
 /// Realized results for one calendar year.
+///
+/// Gains and income are kept apart because they are usually taxed apart: a
+/// staking reward is income when it arrives, and only the movement *after*
+/// that is a capital gain.
 class TaxYearSummary {
   final int year;
   final double proceeds;
   final double costBasis;
   final int disposalCount;
+  final double income;
+  final int incomeCount;
 
   const TaxYearSummary({
     required this.year,
     required this.proceeds,
     required this.costBasis,
     required this.disposalCount,
+    this.income = 0,
+    this.incomeCount = 0,
   });
 
   double get gain => proceeds - costBasis;
 
   double get gainPercent => costBasis > 0 ? (gain / costBasis) * 100 : 0;
+
+  /// What the year produced in total, however it is taxed.
+  double get total => gain + income;
 }
 
 /// Realized gains across the portfolio, grouped by calendar year.
@@ -46,11 +74,14 @@ class TaxYearSummary {
 /// here.
 class TaxReport {
   final List<RealizedDisposal> disposals;
+  final List<IncomeEvent> incomes;
 
-  const TaxReport(this.disposals);
+  const TaxReport(this.disposals, [this.incomes = const []]);
 
   factory TaxReport.from(List<CryptoEntity> cryptos) {
     final out = <RealizedDisposal>[];
+    final earned = <IncomeEvent>[];
+
     for (final crypto in cryptos) {
       for (final d in crypto.ledger.disposals) {
         out.add(RealizedDisposal(
@@ -59,34 +90,53 @@ class TaxReport {
           disposal: d,
         ));
       }
+      for (final t in crypto.transactions) {
+        if (!t.isIncomeMovement) continue;
+        earned.add(IncomeEvent(
+          symbol: crypto.symbol,
+          date: t.date,
+          quantity: t.quantity,
+          value: t.incomeValue,
+        ));
+      }
     }
+
     out.sort((a, b) => a.date.compareTo(b.date));
-    return TaxReport(out);
+    earned.sort((a, b) => a.date.compareTo(b.date));
+    return TaxReport(out, earned);
   }
 
-  bool get isEmpty => disposals.isEmpty;
+  bool get isEmpty => disposals.isEmpty && incomes.isEmpty;
 
-  /// Years that actually contain a sale, most recent first.
+  /// Years containing a sale or income, most recent first.
   List<TaxYearSummary> get years {
-    final byYear = <int, List<RealizedDisposal>>{};
+    final sales = <int, List<RealizedDisposal>>{};
     for (final d in disposals) {
-      byYear.putIfAbsent(d.disposal.taxYear, () => []).add(d);
+      sales.putIfAbsent(d.disposal.taxYear, () => []).add(d);
+    }
+    final earned = <int, List<IncomeEvent>>{};
+    for (final i in incomes) {
+      earned.putIfAbsent(i.taxYear, () => []).add(i);
     }
 
     final out = [
-      for (final entry in byYear.entries)
+      for (final year in {...sales.keys, ...earned.keys})
         TaxYearSummary(
-          year: entry.key,
-          proceeds:
-              entry.value.fold(0.0, (s, d) => s + d.disposal.proceeds),
-          costBasis:
-              entry.value.fold(0.0, (s, d) => s + d.disposal.costBasis),
-          disposalCount: entry.value.length,
+          year: year,
+          proceeds: (sales[year] ?? const [])
+              .fold(0.0, (s, d) => s + d.disposal.proceeds),
+          costBasis: (sales[year] ?? const [])
+              .fold(0.0, (s, d) => s + d.disposal.costBasis),
+          disposalCount: (sales[year] ?? const []).length,
+          income: (earned[year] ?? const []).fold(0.0, (s, i) => s + i.value),
+          incomeCount: (earned[year] ?? const []).length,
         )
     ];
     out.sort((a, b) => b.year.compareTo(a.year));
     return out;
   }
+
+  double get totalIncome => incomes.fold(0.0, (s, i) => s + i.value);
 
   List<RealizedDisposal> forYear(int year) =>
       disposals.where((d) => d.disposal.taxYear == year).toList();

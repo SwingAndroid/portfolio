@@ -47,6 +47,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         return const Color(0xFF3B82F6);
       case TransactionType.transferOut:
         return const Color(0xFFF97316);
+      case TransactionType.reward:
+        return const Color(0xFFA855F7);
     }
   }
 
@@ -60,12 +62,15 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         return 'Add Transfer In';
       case TransactionType.transferOut:
         return 'Add Transfer Out';
+      case TransactionType.reward:
+        return 'Add Reward';
     }
   }
 
   final _feeCtrl = TextEditingController();
 
   bool get _isTransfer => _type.isTransfer;
+  bool get _isReward => _type == TransactionType.reward;
 
   @override
   void dispose() {
@@ -156,21 +161,26 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   style: const TextStyle(color: AppTheme.textPrimary),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: _isTransfer
-                        ? 'Cost basis per coin (optional)'
-                        : 'Price per coin (USD)',
+                    labelText: _isReward
+                        ? 'Value per coin when received'
+                        : _isTransfer
+                            ? 'Cost basis per coin (optional)'
+                            : 'Price per coin (USD)',
                     hintText: '0.00',
                     prefixText: '\$ ',
                     prefixStyle:
                         const TextStyle(color: AppTheme.textSecondary),
-                    helperText: _isTransfer
-                        ? 'Leave empty if unknown'
-                        : null,
+                    helperText: _isReward
+                        ? 'Taxed as income at this value, and it becomes '
+                            'your cost basis'
+                        : _isTransfer
+                            ? 'Leave empty if unknown'
+                            : null,
                     helperStyle:
                         const TextStyle(color: AppTheme.textTertiary, fontSize: 11),
                   ),
                   validator: (v) {
-                    if (_isTransfer) {
+                    if (_isTransfer || _isReward) {
                       // Allow empty or zero for transfers
                       if (v != null && v.isNotEmpty) {
                         final parsed = Formatters.tryParseNum(v);
@@ -344,6 +354,20 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _TypeChip(
+                label: 'Reward',
+                icon: Icons.card_giftcard_rounded,
+                isSelected: _type == TransactionType.reward,
+                color: const Color(0xFFA855F7),
+                onTap: () => setState(() => _type = TransactionType.reward),
+              ),
+              // Keeps the reward chip the same width as the row above.
+              const Expanded(child: SizedBox()),
+            ],
+          ),
         ],
       ),
     );
@@ -368,11 +392,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            _isTransfer
-                ? 'Cost basis total'
-                : (_type == TransactionType.sell
-                    ? 'Net proceeds'
-                    : 'Total cost'),
+            _isReward
+                ? 'Income received'
+                : _isTransfer
+                    ? 'Cost basis total'
+                    : (_type == TransactionType.sell
+                        ? 'Net proceeds'
+                        : 'Total cost'),
             style: const TextStyle(color: AppTheme.textSecondary),
           ),
           Text(

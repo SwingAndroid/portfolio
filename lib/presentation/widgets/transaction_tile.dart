@@ -27,6 +27,8 @@ class TransactionTile extends StatelessWidget {
         return const Color(0xFF3B82F6); // blue
       case TransactionType.transferOut:
         return const Color(0xFFF97316); // orange
+      case TransactionType.reward:
+        return const Color(0xFFA855F7); // violet — income, not a trade
     }
   }
 
@@ -40,6 +42,8 @@ class TransactionTile extends StatelessWidget {
         return 'Transfer In';
       case TransactionType.transferOut:
         return 'Transfer Out';
+      case TransactionType.reward:
+        return 'Reward';
     }
   }
 
@@ -53,6 +57,8 @@ class TransactionTile extends StatelessWidget {
         return Icons.call_received_rounded;
       case TransactionType.transferOut:
         return Icons.call_made_rounded;
+      case TransactionType.reward:
+        return Icons.card_giftcard_rounded;
     }
   }
 

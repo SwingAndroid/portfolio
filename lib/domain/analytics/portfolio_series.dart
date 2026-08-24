@@ -63,7 +63,8 @@ List<ValueSnapshot> buildDailySeries({
       if (pos == null) continue; // transaction for a coin no longer tracked
       if (t.type.addsHoldings) {
         pos.quantity += t.quantity;
-        pos.invested += t.grossCost;
+        // Income adds coins without adding capital.
+        pos.invested += t.capitalIn;
       } else {
         pos.quantity -= t.quantity;
         pos.invested -= t.netProceeds;
@@ -171,13 +172,13 @@ Map<String, double> investedByDay({
   // Everything before the window still counts towards the running total.
   while (cursor < events.length && _day(events[cursor].date).isBefore(start)) {
     final t = events[cursor++];
-    invested += t.type.addsHoldings ? t.grossCost : -t.netProceeds;
+    invested += t.type.addsHoldings ? t.capitalIn : -t.netProceeds;
   }
 
   for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
     while (cursor < events.length && !_day(events[cursor].date).isAfter(d)) {
       final t = events[cursor++];
-      invested += t.type.addsHoldings ? t.grossCost : -t.netProceeds;
+      invested += t.type.addsHoldings ? t.capitalIn : -t.netProceeds;
     }
     out[ValueSnapshot.keyFor(d)] = invested;
   }

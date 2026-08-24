@@ -125,6 +125,10 @@ List<CashFlow> cashFlowsFor(
 
   for (final crypto in cryptos) {
     for (final t in crypto.transactions) {
+      // Income moved no money. Treating a reward as a contribution would
+      // read as capital deployed and crush the rate; it belongs in the
+      // final valuation as pure return, which is where it already lands.
+      if (t.isIncomeMovement) continue;
       if (t.pricePerCoin <= 0) continue;
       final amount = t.quantity * t.pricePerCoin;
       flows.add(CashFlow(t.date, t.type.addsHoldings ? -amount : amount));
