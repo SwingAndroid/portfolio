@@ -1,3 +1,4 @@
+import '../../core/sync/sync_status.dart';
 import '../../domain/entities/crypto_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/entities/price_point.dart';
@@ -10,12 +11,29 @@ class CryptoRepositoryImpl implements CryptoRepository {
   final CryptoLocalDatasource localDatasource;
   final CryptoRemoteDatasource remoteDatasource;
   final SupabaseDataSource? cloudDatasource;
+  final SyncStatus? syncStatus;
 
   CryptoRepositoryImpl({
     required this.localDatasource,
     required this.remoteDatasource,
     this.cloudDatasource,
+    this.syncStatus,
   });
+
+  /// Runs a cloud write without ever failing the user's action — local Hive is
+  /// already updated by the time this runs — but reports the outcome instead of
+  /// swallowing it. A silent `catch (_) {}` here is what hid 77 days of
+  /// unsynced writes.
+  Future<void> _cloudWrite(Future<void> Function() write) async {
+    final cloud = cloudDatasource;
+    if (cloud == null) return;
+    try {
+      await write();
+      syncStatus?.reportSuccess();
+    } catch (e) {
+      syncStatus?.reportFailure(e);
+    }
+  }
 
   @override
   Future<List<CryptoEntity>> getPortfolio() async {
@@ -58,33 +76,48 @@ class CryptoRepositoryImpl implements CryptoRepository {
   @override
   Future<void> addCrypto(CryptoEntity crypto) async {
     await localDatasource.saveCrypto(crypto);
-    try {
-      await cloudDatasource?.upsertCrypto(crypto);
-    } catch (_) {}
+    await _cloudWrite(() => cloudDatasource!.upsertCrypto(crypto));
   }
 
   @override
   Future<void> deleteCrypto(String cryptoId) async {
     await localDatasource.deleteCrypto(cryptoId);
+    // Remember the delete up front. If the cloud call succeeds the tombstone is
+    // dropped; if it fails it survives, so the next pull cannot resurrect the
+    // record.
+    await localDatasource.recordPendingDelete(
+        cryptoId, PendingDeleteKind.crypto);
+    final cloud = cloudDatasource;
+    if (cloud == null) return;
     try {
-      await cloudDatasource?.deleteCrypto(cryptoId);
-    } catch (_) {}
+      await cloud.deleteCrypto(cryptoId);
+      await localDatasource.clearPendingDelete(cryptoId);
+      syncStatus?.reportSuccess();
+    } catch (e) {
+      syncStatus?.reportFailure(e);
+    }
   }
 
   @override
   Future<void> addTransaction(TransactionEntity transaction) async {
     await localDatasource.saveTransaction(transaction);
-    try {
-      await cloudDatasource?.upsertTransaction(transaction);
-    } catch (_) {}
+    await _cloudWrite(() => cloudDatasource!.upsertTransaction(transaction));
   }
 
   @override
   Future<void> deleteTransaction(String transactionId) async {
     await localDatasource.deleteTransaction(transactionId);
+    await localDatasource.recordPendingDelete(
+        transactionId, PendingDeleteKind.transaction);
+    final cloud = cloudDatasource;
+    if (cloud == null) return;
     try {
-      await cloudDatasource?.deleteTransaction(transactionId);
-    } catch (_) {}
+      await cloud.deleteTransaction(transactionId);
+      await localDatasource.clearPendingDelete(transactionId);
+      syncStatus?.reportSuccess();
+    } catch (e) {
+      syncStatus?.reportFailure(e);
+    }
   }
 
   @override
@@ -102,4 +135,22 @@ class CryptoRepositoryImpl implements CryptoRepository {
   @override
   Future<List<PricePoint>> getMarketChart(String coinId, {int days = 90}) =>
       remoteDatasource.getMarketChart(coinId, days: days);
+
+  @override
+  Future<String?> resolveCoinId({
+    required String symbol,
+    required String name,
+  }) =>
+      remoteDatasource.resolveCoinId(symbol: symbol, name: name);
+
+  @override
+  Future<void> updateCoinId(String cryptoId, String newCoinId) async {
+    final models = await localDatasource.getCryptos();
+    final model = models.where((c) => c.id == cryptoId).firstOrNull;
+    if (model == null) return;
+
+    final updated = model.toEntity().copyWith(coinId: newCoinId);
+    await localDatasource.saveCrypto(updated);
+    await _cloudWrite(() => cloudDatasource!.upsertCrypto(updated));
+  }
 }

@@ -8,6 +8,7 @@ import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
 import '../widgets/allocation_chart.dart';
+import '../widgets/sync_banner.dart';
 import '../widgets/crypto_card.dart';
 import '../widgets/portfolio_header.dart';
 
@@ -62,6 +63,11 @@ class _PortfolioView extends StatelessWidget {
                               ),
                       ),
                     ),
+
+                  // Sync health + local backup. Placed above the fold on
+                  // purpose: a failing sync must not be discoverable only by
+                  // scrolling.
+                  const SliverToBoxAdapter(child: SyncBanner()),
 
                   // Allocation chart (shown when loaded and has coins)
                   if (state is PortfolioLoaded && state.cryptos.isNotEmpty)

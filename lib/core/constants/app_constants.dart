@@ -15,6 +15,7 @@ class AppConstants {
   // ── Hive boxes ────────────────────────────────────────────────────────────
   static const String cryptoBoxName = 'cryptos';
   static const String transactionBoxName = 'transactions';
+  static const String pendingDeleteBoxName = 'pending_deletes';
 
   static const Duration priceCacheDuration = Duration(minutes: 5);
 }

@@ -42,8 +42,9 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
       emit((state as PortfolioLoaded).copyWith(isRefreshing: true));
     }
     try {
-      // Pull latest data from Supabase into Hive, then reload
-      await syncService.pullFromCloud();
+      // Push any local-only records first, then pull. Refreshing used to only
+      // pull, so a backlog could never leave the device.
+      await syncService.syncAll();
       final cryptos = await getPortfolio();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {

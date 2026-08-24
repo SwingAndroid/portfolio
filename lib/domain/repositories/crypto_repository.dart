@@ -13,4 +13,12 @@ abstract class CryptoRepository {
   Future<List<Map<String, dynamic>>> searchCoins(String query);
   Future<Map<String, dynamic>?> getCoinDetails(String coinId);
   Future<List<PricePoint>> getMarketChart(String coinId, {int days});
+
+  /// Looks up the current CoinGecko id for a coin whose stored id no longer
+  /// resolves. Returns null when no confident match is found.
+  Future<String?> resolveCoinId({required String symbol, required String name});
+
+  /// Persists a corrected [newCoinId] for the given portfolio entry, locally
+  /// and in the cloud.
+  Future<void> updateCoinId(String cryptoId, String newCoinId);
 }

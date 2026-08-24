@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
+import 'core/sync/sync_status.dart';
 import 'data/datasources/cloud/supabase_datasource.dart';
 import 'data/datasources/cloud/sync_service.dart';
 import 'data/datasources/local/crypto_local_datasource.dart';
@@ -31,17 +32,26 @@ Future<void> initDependencies() async {
   final cryptoBox = await Hive.openBox<CryptoModel>(AppConstants.cryptoBoxName);
   final transactionBox =
       await Hive.openBox<TransactionModel>(AppConstants.transactionBoxName);
+  // Separate box, plain String values: no new typeId and no adapter, so the
+  // existing cryptos/transactions boxes are never migrated or rewritten.
+  final pendingDeleteBox =
+      await Hive.openBox<String>(AppConstants.pendingDeleteBoxName);
 
   // ── CoinGecko HTTP client ─────────────────────────────────────────────────
   final dio = Dio(BaseOptions(
     baseUrl: AppConstants.coingeckoBaseUrl,
     connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
+    // Chart and coin-detail responses are large; 10s was tight enough to
+    // fail on slow mobile connections, which silently blanked those cards.
+    receiveTimeout: const Duration(seconds: 30),
     headers: {
       'x-cg-demo-api-key': AppConstants.coingeckoApiKey,
       'Accept': 'application/json',
     },
   ));
+
+  // ── Sync health (drives the banner; replaces silent catch blocks) ─────────
+  sl.registerLazySingleton<SyncStatus>(() => SyncStatus());
 
   // ── Supabase ──────────────────────────────────────────────────────────────
   final supabaseClient = Supabase.instance.client;
@@ -53,7 +63,10 @@ Future<void> initDependencies() async {
   // ── Datasources ───────────────────────────────────────────────────────────
   sl.registerLazySingleton<CryptoLocalDatasource>(
     () => CryptoLocalDatasourceImpl(
-        cryptoBox: cryptoBox, transactionBox: transactionBox),
+      cryptoBox: cryptoBox,
+      transactionBox: transactionBox,
+      pendingDeleteBox: pendingDeleteBox,
+    ),
   );
   sl.registerLazySingleton<CryptoRemoteDatasource>(
     () => CryptoRemoteDatasourceImpl(dio: dio),
@@ -73,6 +86,7 @@ Future<void> initDependencies() async {
       localDatasource: sl(),
       remoteDatasource: sl(),
       cloudDatasource: sl(),
+      syncStatus: sl(),
     ),
   );
 
@@ -88,6 +102,8 @@ Future<void> initDependencies() async {
   sl.registerFactory(() => AuthCubit(
         client: supabaseClient,
         syncService: sl(),
+        local: sl(),
+        syncStatus: sl(),
       ));
 
   sl.registerFactory(() => PortfolioBloc(

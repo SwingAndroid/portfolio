@@ -280,6 +280,26 @@ class _CryptoDetailView extends StatelessWidget {
     );
   }
 
+  /// Explains why the Entry Signal has no factors to score. All three inputs
+  /// are optional, so this only happens when market data failed *and* there is
+  /// no usable cost basis.
+  String _signalUnavailableMessage(CryptoDetailLoaded state, dynamic crypto) {
+    if (state.marketDataError == DetailFailure.coinNotFound) {
+      return 'CoinGecko no longer recognises the id "${crypto.coinId}" for this '
+          'coin, so market data cannot be loaded. Re-adding the coin from '
+          'search will fix it.';
+    }
+    if (state.marketDataError == DetailFailure.network) {
+      return 'Market data could not be loaded. Check your connection and try '
+          'again.';
+    }
+    if ((crypto.avgBuyPrice as double) <= 0) {
+      return 'No buy transactions yet, so there is no cost basis to score '
+          'against. Add a buy, or wait for market data to load.';
+    }
+    return 'Not enough market data to score an entry for this coin yet.';
+  }
+
   Widget _holdingsCard(BuildContext context, dynamic crypto, bool isProfit,
       Color pnlColor, CryptoDetailLoaded state) {
     final marketData = state.marketData;
@@ -289,11 +309,30 @@ class _CryptoDetailView extends StatelessWidget {
       athChangePercent: marketData?.athChangePercent,
       change30d: marketData?.change30d,
     );
+    final cubit = context.read<CryptoDetailCubit>();
     return Column(
       children: [
+        // ── Stale coin id was detected and corrected ────────────────────────
+        if (state.repairedFromCoinId != null) ...[
+          _RepairedNote(
+            from: state.repairedFromCoinId!,
+            to: crypto.coinId as String,
+          ),
+          const SizedBox(height: 12),
+        ],
         // ── Entry Signal card (DCA "should I add now?") ─────────────────────
         if (signal.hasData) ...[
           _EntrySignalCard(signal: signal),
+          const SizedBox(height: 12),
+        ] else ...[
+          _UnavailableCard(
+            icon: Icons.auto_graph_rounded,
+            title: 'Entry Signal',
+            message: _signalUnavailableMessage(state, crypto),
+            onRetry: state.marketDataError == DetailFailure.network
+                ? cubit.retryMarketData
+                : null,
+          ),
           const SizedBox(height: 12),
         ],
         // ── Price chart with avg-cost line + buy markers ────────────────────
@@ -302,8 +341,9 @@ class _CryptoDetailView extends StatelessWidget {
           history: state.priceHistory,
           days: state.chartDays,
           loading: state.chartLoading,
-          onRange: (d) =>
-              context.read<CryptoDetailCubit>().loadChart(crypto.coinId, d),
+          error: state.chartError,
+          onRetry: cubit.retryChart,
+          onRange: (d) => cubit.loadChart(crypto.coinId as String, d),
         ),
         // ── Holdings card ───────────────────────────────────────────────────
         Container(
@@ -1017,6 +1057,8 @@ class _PriceChartCard extends StatelessWidget {
   final List<PricePoint>? history;
   final int days;
   final bool loading;
+  final DetailFailure? error;
+  final VoidCallback onRetry;
   final ValueChanged<int> onRange;
 
   const _PriceChartCard({
@@ -1024,6 +1066,8 @@ class _PriceChartCard extends StatelessWidget {
     required this.history,
     required this.days,
     required this.loading,
+    required this.error,
+    required this.onRetry,
     required this.onRange,
   });
 
@@ -1039,8 +1083,8 @@ class _PriceChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasData = history != null && history!.isNotEmpty;
-    // Nothing to show and nothing loading → take no space.
-    if (!hasData && !loading) return const SizedBox.shrink();
+    // The card always renders now. Hiding it on failure made a broken coin
+    // look identical to one that simply has no chart.
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1076,22 +1120,10 @@ class _PriceChartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
-            SizedBox(
-              height: 180,
-              child: (!hasData)
-                  ? const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppTheme.primary),
-                      ),
-                    )
-                  : _buildChart(),
-            ),
+            SizedBox(height: 180, child: _buildBody(hasData)),
             const SizedBox(height: 14),
             // ── Legend ───────────────────────────────────────────────────
-            Wrap(
+            if (hasData) Wrap(
               spacing: 16,
               runSpacing: 6,
               children: [
@@ -1105,6 +1137,36 @@ class _PriceChartCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBody(bool hasData) {
+    if (loading && !hasData) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child:
+              CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+        ),
+      );
+    }
+    if (hasData) return _buildChart();
+
+    final message = switch (error) {
+      DetailFailure.coinNotFound =>
+        'CoinGecko no longer recognises the id "${crypto.coinId}" for this '
+            'coin, so its price history is unavailable. Re-adding the coin '
+            'from search will fix it.',
+      DetailFailure.network =>
+        'Price history could not be loaded. Check your connection and try '
+            'again.',
+      null => 'No price history available for this coin.',
+    };
+
+    return _CardMessage(
+      message: message,
+      onRetry: error == DetailFailure.network ? onRetry : null,
     );
   }
 
@@ -1609,6 +1671,152 @@ class _DeleteButton extends StatelessWidget {
         ),
         child:
             const Icon(Icons.delete_outline, color: AppTheme.loss, size: 18),
+      ),
+    );
+  }
+}
+
+// ─── Failure / empty states ──────────────────────────────────────────────────
+
+/// Inline message used inside a card body that has a fixed height.
+class _CardMessage extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _CardMessage({required this.message, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.cloud_off_rounded,
+              color: AppTheme.textTertiary, size: 26),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 12, height: 1.4),
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Stand-in for a card whose data could not be loaded, so the feature stays
+/// visible and explains itself rather than silently disappearing.
+class _UnavailableCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _UnavailableCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppTheme.textTertiary, size: 18),
+              const SizedBox(width: 6),
+              Text(title,
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: const TextStyle(
+                color: AppTheme.textTertiary, fontSize: 12, height: 1.45),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown once after a stale CoinGecko id has been detected and corrected.
+class _RepairedNote extends StatelessWidget {
+  final String from;
+  final String to;
+
+  const _RepairedNote({required this.from, required this.to});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.auto_fix_high_rounded,
+              color: AppTheme.primary, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'This coin\'s CoinGecko id changed from "$from" to "$to". '
+              'It has been updated, so charts and market data work again.',
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 11, height: 1.4),
+            ),
+          ),
+        ],
       ),
     );
   }

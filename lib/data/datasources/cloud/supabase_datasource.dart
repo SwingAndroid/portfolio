@@ -6,8 +6,10 @@ abstract class SupabaseDataSource {
   Future<List<Map<String, dynamic>>> fetchCryptos();
   Future<List<Map<String, dynamic>>> fetchTransactions();
   Future<void> upsertCrypto(CryptoEntity crypto);
+  Future<void> upsertCryptos(List<CryptoEntity> cryptos);
   Future<void> deleteCrypto(String cryptoId);
   Future<void> upsertTransaction(TransactionEntity transaction);
+  Future<void> upsertTransactions(List<TransactionEntity> transactions);
   Future<void> deleteTransaction(String transactionId);
   Future<void> deleteAllUserData();
 }
@@ -43,16 +45,38 @@ class SupabaseDataSourceImpl implements SupabaseDataSource {
     return List<Map<String, dynamic>>.from(response as List);
   }
 
+  Map<String, dynamic> _cryptoRow(CryptoEntity c, String uid) => {
+        'id': c.id,
+        'user_id': uid,
+        'coin_id': c.coinId,
+        'name': c.name,
+        'symbol': c.symbol,
+        'image_url': c.imageUrl,
+      };
+
+  Map<String, dynamic> _transactionRow(TransactionEntity t, String uid) => {
+        'id': t.id,
+        'user_id': uid,
+        'crypto_id': t.cryptoId,
+        'type': t.type.name,
+        'quantity': t.quantity,
+        'price_per_coin': t.pricePerCoin,
+        'date': t.date.toUtc().toIso8601String(),
+        'note': t.note,
+      };
+
   @override
   Future<void> upsertCrypto(CryptoEntity crypto) async {
-    await _client.from('cryptos').upsert({
-      'id': crypto.id,
-      'user_id': _userId,
-      'coin_id': crypto.coinId,
-      'name': crypto.name,
-      'symbol': crypto.symbol,
-      'image_url': crypto.imageUrl,
-    });
+    await _client.from('cryptos').upsert(_cryptoRow(crypto, _userId));
+  }
+
+  @override
+  Future<void> upsertCryptos(List<CryptoEntity> cryptos) async {
+    if (cryptos.isEmpty) return;
+    final uid = _userId;
+    await _client
+        .from('cryptos')
+        .upsert([for (final c in cryptos) _cryptoRow(c, uid)]);
   }
 
   @override
@@ -66,16 +90,18 @@ class SupabaseDataSourceImpl implements SupabaseDataSource {
 
   @override
   Future<void> upsertTransaction(TransactionEntity transaction) async {
-    await _client.from('transactions').upsert({
-      'id': transaction.id,
-      'user_id': _userId,
-      'crypto_id': transaction.cryptoId,
-      'type': transaction.type.name,
-      'quantity': transaction.quantity,
-      'price_per_coin': transaction.pricePerCoin,
-      'date': transaction.date.toUtc().toIso8601String(),
-      'note': transaction.note,
-    });
+    await _client
+        .from('transactions')
+        .upsert(_transactionRow(transaction, _userId));
+  }
+
+  @override
+  Future<void> upsertTransactions(List<TransactionEntity> transactions) async {
+    if (transactions.isEmpty) return;
+    final uid = _userId;
+    await _client
+        .from('transactions')
+        .upsert([for (final t in transactions) _transactionRow(t, uid)]);
   }
 
   @override

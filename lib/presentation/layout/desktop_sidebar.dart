@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/sync_banner.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/entities/crypto_entity.dart';
-import '../bloc/auth/auth_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
@@ -192,7 +192,7 @@ class DesktopSidebar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: TextButton.icon(
-        onPressed: () => context.read<AuthCubit>().signOut(),
+        onPressed: () => confirmAndSignOut(context),
         icon: const Icon(Icons.logout, color: AppTheme.textTertiary, size: 16),
         label: const Text('Sign Out',
             style: TextStyle(color: AppTheme.textTertiary, fontSize: 13)),

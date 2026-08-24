@@ -1,15 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/sync/sync_status.dart';
+import '../../../data/datasources/cloud/account_sync.dart';
 import '../../../data/datasources/cloud/sync_service.dart';
+import '../../../data/datasources/local/crypto_local_datasource.dart';
 import 'auth_state.dart';
 
 class AuthCubit extends Cubit<AppAuthState> {
   final SupabaseClient _client;
   final SyncService _syncService;
+  final AccountSync _accountSync;
+  final SyncStatus? _syncStatus;
 
-  AuthCubit({required SupabaseClient client, required SyncService syncService})
-      : _client = client,
+  AuthCubit({
+    required SupabaseClient client,
+    required SyncService syncService,
+    required CryptoLocalDatasource local,
+    SyncStatus? syncStatus,
+  })  : _client = client,
         _syncService = syncService,
+        _accountSync = AccountSync(local: local, sync: syncService),
+        _syncStatus = syncStatus,
         super(const AuthInitial()) {
     _init();
   }
@@ -17,12 +30,11 @@ class AuthCubit extends Cubit<AppAuthState> {
   void _init() {
     final user = _client.auth.currentUser;
     if (user != null) {
-      // Already authenticated (e.g. page refresh) — sync from cloud first
-      _syncService.pullFromCloud().then((_) {
-        emit(AuthAuthenticated(user));
-      }).catchError((_) {
-        emit(AuthAuthenticated(user));
-      });
+      // Emit first, sync after. The router treats anything other than
+      // AuthAuthenticated as logged out, so waiting on the network here used to
+      // bounce an authenticated user to /login until the request came back.
+      emit(AuthAuthenticated(user));
+      unawaited(_syncFor(user.id));
     } else {
       emit(const AuthUnauthenticated());
     }
@@ -37,6 +49,39 @@ class AuthCubit extends Cubit<AppAuthState> {
     });
   }
 
+  /// Reconciles local and cloud for [userId] via [AccountSync].
+  Future<void> _syncFor(String userId) async {
+    try {
+      final report = await _accountSync.syncForUser(userId);
+      if (report.isHeld) {
+        _syncStatus?.reportHeld(report.awaiting!.total);
+      } else if (report.ok) {
+        if (report.pushed > 0) _syncStatus?.reportSuccess();
+        _syncStatus?.reportPending(0);
+      } else {
+        _syncStatus?.reportFailure(report.error!);
+      }
+    } catch (e) {
+      _syncStatus?.reportFailure(e);
+    }
+  }
+
+  /// Retries the backlog on demand. Returns the report so the UI can show what
+  /// happened.
+  Future<SyncReport> retrySync() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return const SyncReport(error: 'Not signed in');
+    // A manual tap is the user's approval to upload the backlog.
+    final report = await _accountSync.syncForUser(user.id, confirmed: true);
+    if (report.ok) {
+      _syncStatus?.reportSuccess();
+      _syncStatus?.reportPending(0);
+    } else {
+      _syncStatus?.reportFailure(report.error!);
+    }
+    return report;
+  }
+
   Future<void> signIn(String email, String password) async {
     emit(const AuthLoading());
     try {
@@ -44,9 +89,10 @@ class AuthCubit extends Cubit<AppAuthState> {
         email: email,
         password: password,
       );
-      if (response.user != null) {
-        await _syncService.pullFromCloud();
-        emit(AuthAuthenticated(response.user!));
+      final user = response.user;
+      if (user != null) {
+        await _syncFor(user.id);
+        emit(AuthAuthenticated(user));
       } else {
         emit(const AuthError('Sign in failed. Please try again.'));
       }
@@ -76,13 +122,25 @@ class AuthCubit extends Cubit<AppAuthState> {
     }
   }
 
-  Future<void> signOut() async {
-    try {
-      await _syncService.clearLocal();
-      await _client.auth.signOut();
-      emit(const AuthUnauthenticated());
-    } catch (e) {
-      emit(const AuthUnauthenticated());
+  /// Signs out, refusing to wipe local data that the cloud has never seen.
+  ///
+  /// Returns null when sign-out completed. Returns the pending-data details
+  /// when it was refused, so the caller can warn before offering [force].
+  Future<UnsyncedDataException?> signOut({bool force = false}) async {
+    if (!force) {
+      // Last chance to save the backlog before it would be destroyed.
+      await _syncService.pushLocalChanges();
+      final unsynced = await _syncService.findUnsynced();
+      if (unsynced != null) return unsynced;
     }
+
+    try {
+      await _syncService.clearLocal(force: true);
+      await _client.auth.signOut();
+    } catch (_) {
+      // Fall through: the session is gone locally either way.
+    }
+    emit(const AuthUnauthenticated());
+    return null;
   }
 }
