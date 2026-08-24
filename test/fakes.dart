@@ -5,6 +5,7 @@ import 'package:crypto_portfolio/data/models/crypto_model.dart';
 import 'package:crypto_portfolio/data/models/transaction_model.dart';
 import 'package:crypto_portfolio/domain/entities/crypto_entity.dart';
 import 'package:crypto_portfolio/domain/entities/price_point.dart';
+import 'package:crypto_portfolio/domain/entities/price_quote.dart';
 import 'package:crypto_portfolio/domain/entities/transaction_entity.dart';
 
 /// Shared in-memory doubles. The cloud fake enforces the same foreign-key rule
@@ -74,7 +75,7 @@ class MemLocal implements CryptoLocalDatasource {
 
 class OfflineRemote implements CryptoRemoteDatasource {
   @override
-  Future<Map<String, double>> getMultiplePrices(List<String> ids) async => {};
+  Future<Map<String, PriceQuote>> getMultiplePrices(List<String> ids) async => {};
   @override
   Future<double> getCryptoPrice(String coinId) async => 0.0;
   @override

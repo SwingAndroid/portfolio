@@ -8,6 +8,7 @@ import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
 import '../widgets/allocation_chart.dart';
+import '../widgets/performance_card.dart';
 import '../widgets/sync_banner.dart';
 import '../widgets/crypto_card.dart';
 import '../widgets/portfolio_header.dart';
@@ -68,6 +69,20 @@ class _PortfolioView extends StatelessWidget {
                   // purpose: a failing sync must not be discoverable only by
                   // scrolling.
                   const SliverToBoxAdapter(child: SyncBanner()),
+
+                  // Performance: total vs annualised return
+                  if (state is PortfolioLoaded && state.cryptos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child: PerformanceCard(state: state),
+                      ),
+                    ),
 
                   // Allocation chart (shown when loaded and has coins)
                   if (state is PortfolioLoaded && state.cryptos.isNotEmpty)

@@ -2,6 +2,7 @@ import '../../core/sync/sync_status.dart';
 import '../../domain/entities/crypto_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/entities/price_point.dart';
+import '../../domain/entities/price_quote.dart';
 import '../../domain/repositories/crypto_repository.dart';
 import '../datasources/local/crypto_local_datasource.dart';
 import '../datasources/remote/crypto_remote_datasource.dart';
@@ -41,7 +42,7 @@ class CryptoRepositoryImpl implements CryptoRepository {
     if (cryptoModels.isEmpty) return [];
 
     final coinIds = cryptoModels.map((c) => c.coinId).toList();
-    Map<String, double> prices = {};
+    Map<String, PriceQuote> prices = {};
 
     try {
       prices = await remoteDatasource.getMultiplePrices(coinIds);
@@ -51,10 +52,11 @@ class CryptoRepositoryImpl implements CryptoRepository {
     for (final model in cryptoModels) {
       final txModels = await localDatasource.getTransactionsForCrypto(model.id);
       final transactions = txModels.map((t) => t.toEntity()).toList();
+      final quote = prices[model.coinId] ?? PriceQuote.zero;
       entities.add(model.toEntity(
         transactions: transactions,
-        currentPrice: prices[model.coinId] ?? 0.0,
-        priceChangePercent24h: 0.0,
+        currentPrice: quote.price,
+        priceChangePercent24h: quote.change24h,
       ));
     }
     return entities;

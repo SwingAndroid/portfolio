@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../analytics/cost_basis_ledger.dart';
 import 'transaction_entity.dart'; // also imports TransactionType
 
 class CryptoEntity extends Equatable {
@@ -43,11 +44,9 @@ class CryptoEntity extends Equatable {
         .fold(0.0, (sum, t) => sum + (t.quantity * t.pricePerCoin));
   }
 
-  double get totalProceeds {
-    return transactions
-        .where((t) => t.type.removesHoldings)
-        .fold(0.0, (sum, t) => sum + (t.quantity * t.pricePerCoin));
-  }
+  /// Cash actually received from sales. Transfers out move coins without
+  /// selling them, so they are not proceeds.
+  double get totalProceeds => ledger.proceeds;
 
   double get totalBoughtQuantity {
     return transactions
@@ -55,15 +54,22 @@ class CryptoEntity extends Equatable {
         .fold(0.0, (sum, t) => sum + t.quantity);
   }
 
-  /// (Total cost − Total proceeds) / Current holdings
-  double get averageNetCost {
-    if (totalHoldings <= 0) return 0;
-    return (totalBought - totalProceeds) / totalHoldings;
-  }
+  /// Average cost of a unit still held, transfers included — so a coin
+  /// received for nothing genuinely pulls it down.
+  double get averageNetCost => ledger.avgCost;
 
   // ── Realized / Unrealized P&L ─────────────────────────────────────────────
 
+  /// Chronological cost-basis walk. Every P&L figure derives from this so a
+  /// past sale is settled at the average that applied on its own date and
+  /// stays put afterwards.
+  CostBasisLedger get ledger => CostBasisLedger.fromTransactions(transactions);
+
   /// Weighted-average price paid across actual buy transactions (no transfers).
+  ///
+  /// Deliberately distinct from [averageNetCost]: this answers "what do I
+  /// normally pay for this coin", which is what the Entry Signal compares
+  /// today's price against, and what the chart draws as your cost line.
   double get avgBuyPrice {
     final buys = transactions.where((t) => t.type == TransactionType.buy);
     final totalQty = buys.fold(0.0, (s, t) => s + t.quantity);
@@ -79,30 +85,21 @@ class CryptoEntity extends Equatable {
         .fold(0.0, (s, t) => s + t.quantity);
   }
 
-  /// Profit/loss already locked in from completed sell transactions.
-  /// realizedPnl = proceeds − (soldQty × avgBuyPrice)
-  double get realizedPnl {
-    if (avgBuyPrice == 0) return 0;
-    return totalProceeds - (totalSoldQuantity * avgBuyPrice);
-  }
+  /// Profit/loss locked in by completed sales. Once a sale has happened this
+  /// number no longer moves, whatever you buy afterwards.
+  double get realizedPnl => ledger.realizedPnl;
 
-  double get realizedPnlPercent {
-    final cost = totalSoldQuantity * avgBuyPrice;
-    if (cost == 0) return 0;
-    return (realizedPnl / cost) * 100;
-  }
+  double get realizedPnlPercent => ledger.realizedPnlPercent;
 
-  /// Paper gain/loss on holdings still held.
-  /// unrealizedPnl = currentValue − (holdingsQty × avgBuyPrice)
+  /// Paper gain/loss on the units still held, against their actual basis.
   double get unrealizedPnl {
-    if (currentPrice == 0 || avgBuyPrice == 0) return 0;
-    return holdingsValue - (totalHoldings * avgBuyPrice);
+    if (currentPrice == 0) return 0;
+    return ledger.unrealizedPnl(currentPrice);
   }
 
   double get unrealizedPnlPercent {
-    final cost = totalHoldings * avgBuyPrice;
-    if (cost == 0) return 0;
-    return (unrealizedPnl / cost) * 100;
+    if (currentPrice == 0) return 0;
+    return ledger.unrealizedPnlPercent(currentPrice);
   }
 
   /// Lowest price paid across all buy transactions (transfers excluded).

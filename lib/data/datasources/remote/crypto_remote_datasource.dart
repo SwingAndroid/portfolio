@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../domain/entities/price_point.dart';
+import '../../../domain/entities/price_quote.dart';
 
 abstract class CryptoRemoteDatasource {
   Future<double> getCryptoPrice(String coinId);
   Future<List<Map<String, dynamic>>> searchCoins(String query);
   Future<Map<String, dynamic>?> getCoinDetails(String coinId);
-  Future<Map<String, double>> getMultiplePrices(List<String> coinIds);
+  Future<Map<String, PriceQuote>> getMultiplePrices(List<String> coinIds);
   Future<List<PricePoint>> getMarketChart(String coinId, {int days});
   Future<String?> resolveCoinId({required String symbol, required String name});
 }
@@ -46,7 +47,7 @@ class CryptoRemoteDatasourceImpl implements CryptoRemoteDatasource {
   }
 
   @override
-  Future<Map<String, double>> getMultiplePrices(List<String> coinIds) async {
+  Future<Map<String, PriceQuote>> getMultiplePrices(List<String> coinIds) async {
     if (coinIds.isEmpty) return {};
     try {
       final response = await dio.get('/simple/price', queryParameters: {
@@ -55,9 +56,14 @@ class CryptoRemoteDatasourceImpl implements CryptoRemoteDatasource {
         'include_24hr_change': true,
       });
       final data = response.data as Map<String, dynamic>;
-      final result = <String, double>{};
+      final result = <String, PriceQuote>{};
       for (final id in coinIds) {
-        result[id] = (data[id]?['usd'] as num?)?.toDouble() ?? 0.0;
+        final row = data[id];
+        if (row is! Map) continue;
+        result[id] = PriceQuote(
+          price: (row['usd'] as num?)?.toDouble() ?? 0.0,
+          change24h: (row['usd_24h_change'] as num?)?.toDouble() ?? 0.0,
+        );
       }
       return result;
     } catch (_) {
