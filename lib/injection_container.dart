@@ -8,6 +8,7 @@ import 'data/datasources/cloud/supabase_datasource.dart';
 import 'data/datasources/cloud/sync_service.dart';
 import 'data/datasources/local/crypto_local_datasource.dart';
 import 'data/datasources/local/value_history_store.dart';
+import 'data/services/portfolio_history_service.dart';
 import 'data/datasources/remote/crypto_remote_datasource.dart';
 import 'data/models/crypto_model.dart';
 import 'data/models/transaction_model.dart';
@@ -20,6 +21,7 @@ import 'domain/usecases/delete_transaction_usecase.dart';
 import 'domain/usecases/get_crypto_price_usecase.dart';
 import 'domain/usecases/delete_crypto_usecase.dart';
 import 'presentation/bloc/auth/auth_cubit.dart';
+import 'presentation/bloc/history/portfolio_history_cubit.dart';
 import 'presentation/bloc/portfolio/portfolio_bloc.dart';
 
 final sl = GetIt.instance;
@@ -61,6 +63,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<PortfolioSnapshotRecorder>(
     () => PortfolioSnapshotRecorder(sl()),
+  );
+  sl.registerLazySingleton<PortfolioHistoryService>(
+    () => PortfolioHistoryService(repository: sl(), store: sl()),
   );
 
   // ── Sync health (drives the banner; replaces silent catch blocks) ─────────
@@ -118,6 +123,8 @@ Future<void> initDependencies() async {
         local: sl(),
         syncStatus: sl(),
       ));
+
+  sl.registerFactory(() => PortfolioHistoryCubit(service: sl()));
 
   sl.registerFactory(() => PortfolioBloc(
         snapshotRecorder: sl(),

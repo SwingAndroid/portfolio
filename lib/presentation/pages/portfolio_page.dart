@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
+import '../../injection_container.dart';
+import '../bloc/history/portfolio_history_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
@@ -12,12 +14,18 @@ import '../widgets/performance_card.dart';
 import '../widgets/sync_banner.dart';
 import '../widgets/crypto_card.dart';
 import '../widgets/portfolio_header.dart';
+import '../widgets/portfolio_value_chart.dart';
 
 class PortfolioPage extends StatelessWidget {
   const PortfolioPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const _PortfolioView();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<PortfolioHistoryCubit>(),
+      child: const _PortfolioView(),
+    );
+  }
 }
 
 class _PortfolioView extends StatelessWidget {
@@ -31,7 +39,15 @@ class _PortfolioView extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: BlocBuilder<PortfolioBloc, PortfolioState>(
+        child: BlocConsumer<PortfolioBloc, PortfolioState>(
+          // The history cubit caches per range, so re-emitting a loaded
+          // portfolio costs nothing once the window has been assembled.
+          listenWhen: (_, next) => next is PortfolioLoaded,
+          listener: (context, state) {
+            if (state is PortfolioLoaded && state.cryptos.isNotEmpty) {
+              context.read<PortfolioHistoryCubit>().load(state.cryptos);
+            }
+          },
           builder: (context, state) {
             return RefreshIndicator(
               color: AppTheme.primary,
@@ -81,6 +97,20 @@ class _PortfolioView extends StatelessWidget {
                           isDesktop ? 16 : 12,
                         ),
                         child: PerformanceCard(state: state),
+                      ),
+                    ),
+
+                  // Value over time, against capital engaged
+                  if (state is PortfolioLoaded && state.cryptos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child: PortfolioValueChart(cryptos: state.cryptos),
                       ),
                     ),
 
