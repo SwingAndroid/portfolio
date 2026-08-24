@@ -7,12 +7,14 @@ class TransactionTile extends StatelessWidget {
   final TransactionEntity transaction;
   final String cryptoSymbol;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
 
   const TransactionTile({
     super.key,
     required this.transaction,
     required this.cryptoSymbol,
     this.onDelete,
+    this.onEdit,
   });
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -146,12 +148,54 @@ class TransactionTile extends StatelessWidget {
                       ),
               ],
             ),
-            if (onDelete != null) ...[
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: onDelete,
-                child: const Icon(Icons.more_vert,
+            // A "more" icon that deleted on a single tap, with no menu and no
+            // way back, was one slip away from losing a row.
+            if (onDelete != null || onEdit != null) ...[
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert,
                     color: AppTheme.textTertiary, size: 18),
+                color: AppTheme.surfaceVariant,
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                onSelected: (choice) {
+                  if (choice == 'edit') onEdit?.call();
+                  if (choice == 'delete') onDelete?.call();
+                },
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      height: 40,
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined,
+                              size: 16, color: AppTheme.textSecondary),
+                          SizedBox(width: 10),
+                          Text('Edit',
+                              style: TextStyle(
+                                  color: AppTheme.textPrimary, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  if (onDelete != null)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      height: 40,
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline,
+                              size: 16, color: AppTheme.loss),
+                          SizedBox(width: 10),
+                          Text('Delete',
+                              style: TextStyle(
+                                  color: AppTheme.loss, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ],
           ],

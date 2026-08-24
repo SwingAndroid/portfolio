@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../domain/analytics/risk_metrics.dart';
 import '../../domain/entities/crypto_entity.dart';
 import '../../domain/entities/value_snapshot.dart';
 import '../bloc/history/portfolio_history_cubit.dart';
@@ -274,18 +275,117 @@ class _Summary extends StatelessWidget {
   Widget build(BuildContext context) {
     final last = points.last;
     final profit = last.profitLoss >= 0;
+    final risk = computeRiskMetrics(points);
 
-    return Row(
+    return Column(
       children: [
-        const _LegendDot(color: AppTheme.primary, label: 'Value'),
-        const SizedBox(width: 14),
-        const _LegendDot(
-            color: AppTheme.accent, label: 'Invested', dashed: true),
-        const Spacer(),
+        Row(
+          children: [
+            const _LegendDot(color: AppTheme.primary, label: 'Value'),
+            const SizedBox(width: 14),
+            const _LegendDot(
+                color: AppTheme.accent, label: 'Invested', dashed: true),
+            const Spacer(),
+            Text(
+              Formatters.formatCurrencyWithSign(last.profitLoss),
+              style: TextStyle(
+                color: profit ? AppTheme.profit : AppTheme.loss,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        if (risk.hasData) ...[
+          const SizedBox(height: 12),
+          const Divider(color: AppTheme.divider, height: 1),
+          const SizedBox(height: 12),
+          _RiskRow(risk: risk),
+        ],
+      ],
+    );
+  }
+}
+
+/// Drawdown and volatility, measured with contributions stripped out — paying
+/// money in is not a gain, and it must not paper over a fall either.
+class _RiskRow extends StatelessWidget {
+  final RiskMetrics risk;
+
+  const _RiskRow({required this.risk});
+
+  static String _pct(double fraction) =>
+      '${(fraction * 100).toStringAsFixed(1)}%';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _RiskStat(
+                label: 'Max drawdown',
+                value: '-${_pct(risk.maxDrawdown)}',
+                emphasis: risk.maxDrawdown > 0,
+              ),
+            ),
+            Expanded(
+              child: _RiskStat(
+                label: 'From peak now',
+                value: '-${_pct(risk.currentDrawdown)}',
+                emphasis: risk.currentDrawdown > 0.05,
+              ),
+            ),
+            Expanded(
+              child: _RiskStat(
+                label: 'Volatility',
+                value: '${_pct(risk.annualisedVolatility)} /yr',
+                emphasis: false,
+              ),
+            ),
+          ],
+        ),
+        if (!risk.isReliable) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Based on ${risk.observations} day'
+            '${risk.observations == 1 ? '' : 's'} — indicative until the '
+            'history grows.',
+            style: const TextStyle(
+                color: AppTheme.textTertiary, fontSize: 10, height: 1.3),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RiskStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool emphasis;
+
+  const _RiskStat({
+    required this.label,
+    required this.value,
+    required this.emphasis,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: AppTheme.textTertiary, fontSize: 10)),
+        const SizedBox(height: 3),
         Text(
-          Formatters.formatCurrencyWithSign(last.profitLoss),
+          value,
           style: TextStyle(
-            color: profit ? AppTheme.profit : AppTheme.loss,
+            color: emphasis ? AppTheme.loss : AppTheme.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),

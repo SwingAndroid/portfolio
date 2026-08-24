@@ -107,6 +107,9 @@ class _CryptoDetailView extends StatelessWidget {
                         context.read<PortfolioBloc>().add(const RefreshPortfolioEvent());
                       }
                     },
+                    onEditTx: (tx) => _showAddTransaction(
+                        context, crypto.id, crypto.symbol,
+                        existing: tx),
                   ),
                   const SizedBox(height: 100),
                 ],
@@ -196,6 +199,9 @@ class _CryptoDetailView extends StatelessWidget {
                           context.read<PortfolioBloc>().add(const RefreshPortfolioEvent());
                         }
                       },
+                      onEditTx: (tx) => _showAddTransaction(
+                          context, crypto.id, crypto.symbol,
+                          existing: tx),
                     ),
                   ),
                 ],
@@ -443,7 +449,11 @@ class _CryptoDetailView extends StatelessWidget {
   }
 
   void _showAddTransaction(
-      BuildContext context, String cryptoId, String symbol) {
+    BuildContext context,
+    String cryptoId,
+    String symbol, {
+    TransactionEntity? existing,
+  }) {
     if (Responsive.isDesktop(context)) {
       // Desktop: show as dialog instead of bottom sheet
       showDialog(
@@ -457,7 +467,10 @@ class _CryptoDetailView extends StatelessWidget {
             child: BlocProvider.value(
               value: context.read<CryptoDetailCubit>(),
               child: AddTransactionSheet(
-                  cryptoId: cryptoId, cryptoSymbol: symbol),
+                cryptoId: cryptoId,
+                cryptoSymbol: symbol,
+                existing: existing,
+              ),
             ),
           ),
         ),
@@ -472,7 +485,11 @@ class _CryptoDetailView extends StatelessWidget {
         ),
         builder: (ctx) => BlocProvider.value(
           value: context.read<CryptoDetailCubit>(),
-          child: AddTransactionSheet(cryptoId: cryptoId, cryptoSymbol: symbol),
+          child: AddTransactionSheet(
+            cryptoId: cryptoId,
+            cryptoSymbol: symbol,
+            existing: existing,
+          ),
         ),
       );
     }
@@ -514,6 +531,7 @@ class _TransactionSection extends StatefulWidget {
   final bool isScrollable;
   final EdgeInsets padding;
   final Future<void> Function(TransactionEntity tx) onDeleteTx;
+  final void Function(TransactionEntity tx) onEditTx;
 
   const _TransactionSection({
     required this.transactions,
@@ -521,6 +539,7 @@ class _TransactionSection extends StatefulWidget {
     required this.isScrollable,
     required this.padding,
     required this.onDeleteTx,
+    required this.onEditTx,
   });
 
   @override
@@ -663,6 +682,7 @@ class _TransactionSectionState extends State<_TransactionSection> {
                 transaction: filtered[i],
                 cryptoSymbol: widget.cryptoSymbol,
                 onDelete: () => widget.onDeleteTx(filtered[i]),
+                onEdit: () => widget.onEditTx(filtered[i]),
               ),
             ),
           )
@@ -673,6 +693,7 @@ class _TransactionSectionState extends State<_TransactionSection> {
                   transaction: tx,
                   cryptoSymbol: widget.cryptoSymbol,
                   onDelete: () => widget.onDeleteTx(tx),
+                  onEdit: () => widget.onEditTx(tx),
                 ),
               )),
       ],

@@ -11,10 +11,17 @@ class AddTransactionSheet extends StatefulWidget {
   final String cryptoId;
   final String cryptoSymbol;
 
+  /// When set, the sheet edits this row instead of creating one.
+  ///
+  /// Saving reuses the same id, so both Hive and the cloud upsert over the
+  /// original rather than leaving a duplicate behind.
+  final TransactionEntity? existing;
+
   const AddTransactionSheet({
     super.key,
     required this.cryptoId,
     required this.cryptoSymbol,
+    this.existing,
   });
 
   @override
@@ -28,6 +35,20 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   DateTime _date = DateTime.now();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final row = widget.existing;
+    if (row == null) return;
+    _type = row.type;
+    _quantityCtrl.text = Formatters.formatCryptoAmount(row.quantity);
+    if (row.pricePerCoin > 0) {
+      _priceCtrl.text = row.pricePerCoin.toString();
+    }
+    if (row.fee > 0) _feeCtrl.text = row.fee.toString();
+    _date = row.date;
+  }
 
   // Allow digits plus both decimal separators ('.' and ',') so locales that
   // use a comma on the numeric keyboard (e.g. "16,0") can type freely.
@@ -52,7 +73,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
   }
 
+  bool get _isEditing => widget.existing != null;
+
   String get _typeLabel {
+    if (_isEditing) return 'Edit transaction';
     switch (_type) {
       case TransactionType.buy:
         return 'Add Buy';
@@ -290,7 +314,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                               color: Colors.white, strokeWidth: 2),
                         )
                       : Text(
-                          _typeLabel,
+                          _isEditing ? 'Save changes' : _typeLabel,
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w700),
                         ),
@@ -443,7 +467,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         priceText.isEmpty ? 0.0 : (Formatters.tryParseNum(priceText) ?? 0.0);
 
     final transaction = TransactionEntity(
-      id: const Uuid().v4(),
+      // Editing keeps the id, so the write lands on the original row.
+      id: widget.existing?.id ?? const Uuid().v4(),
       cryptoId: widget.cryptoId,
       type: _type,
       quantity: Formatters.tryParseNum(_quantityCtrl.text) ?? 0,

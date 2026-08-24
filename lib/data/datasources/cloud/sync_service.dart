@@ -113,9 +113,9 @@ class SyncService {
       final cloudCryptoIds = {
         for (final c in await cloudDataSource.fetchCryptos()) c['id'] as String
       };
-      final cloudTxIds = {
+      final cloudTxById = {
         for (final t in await cloudDataSource.fetchTransactions())
-          t['id'] as String
+          t['id'] as String: t
       };
 
       final localCryptos = await localDataSource.getCryptos();
@@ -123,8 +123,12 @@ class SyncService {
 
       final missingCryptos =
           localCryptos.where((c) => !cloudCryptoIds.contains(c.id)).length;
-      final missingTx =
-          localTx.where((t) => !cloudTxIds.contains(t.id)).length;
+      // An edited row counts as unsynced too, so signing out cannot quietly
+      // discard a correction the cloud never received.
+      final missingTx = localTx.where((t) {
+        final remote = cloudTxById[t.id];
+        return remote == null || _differs(t.toEntity(), remote);
+      }).length;
 
       if (missingCryptos == 0 && missingTx == 0) return null;
       return UnsyncedDataException(missingCryptos, missingTx);
@@ -151,9 +155,9 @@ class SyncService {
       final cloudCryptoIds = {
         for (final c in await cloudDataSource.fetchCryptos()) c['id'] as String
       };
-      final cloudTxIds = {
+      final cloudTxById = {
         for (final t in await cloudDataSource.fetchTransactions())
-          t['id'] as String
+          t['id'] as String: t
       };
 
       // Cryptos first: transactions carry a foreign key to them.
@@ -166,10 +170,15 @@ class SyncService {
         await cloudDataSource.upsertCryptos(batch);
       }
 
-      final missingTx = (await localDataSource.getAllTransactions())
-          .where((t) => !cloudTxIds.contains(t.id))
-          .map((t) => t.toEntity())
-          .toList();
+      // Rows the cloud has never seen, plus rows it has an outdated copy of.
+      // Comparing ids alone silently dropped every edit made while offline:
+      // the id already existed, so nothing was ever re-sent.
+      final missingTx = <TransactionEntity>[];
+      for (final model in await localDataSource.getAllTransactions()) {
+        final local = model.toEntity();
+        final remote = cloudTxById[local.id];
+        if (remote == null || _differs(local, remote)) missingTx.add(local);
+      }
 
       for (final batch in _chunk(missingTx)) {
         await cloudDataSource.upsertTransactions(batch);
@@ -183,6 +192,24 @@ class SyncService {
     } catch (e) {
       return SyncReport(error: e);
     }
+  }
+
+  /// Whether the cloud's copy of a transaction has fallen behind the local one.
+  static bool _differs(TransactionEntity local, Map<String, dynamic> remote) {
+    double num0(Object? v) => v is num ? v.toDouble() : double.nan;
+    bool same(double a, double b) => (a - b).abs() < 1e-9;
+
+    if (local.type.name != remote['type']) return true;
+    if (!same(local.quantity, num0(remote['quantity']))) return true;
+    if (!same(local.pricePerCoin, num0(remote['price_per_coin']))) return true;
+    // An unrecorded fee is stored as null and read back as zero.
+    if (!same(local.fee, num0(remote['fee'] ?? 0))) return true;
+    if ((local.note ?? '') != (remote['note'] as String? ?? '')) return true;
+
+    final remoteDate = DateTime.tryParse(remote['date'] as String? ?? '');
+    if (remoteDate == null) return true;
+    return local.date.toUtc().millisecondsSinceEpoch !=
+        remoteDate.toUtc().millisecondsSinceEpoch;
   }
 
   Future<int> _flushPendingDeletes() async {
