@@ -8,6 +8,7 @@ class TransactionTile extends StatelessWidget {
   final String cryptoSymbol;
   final VoidCallback? onDelete;
   final VoidCallback? onEdit;
+  final VoidCallback? onTap;
 
   const TransactionTile({
     super.key,
@@ -15,6 +16,7 @@ class TransactionTile extends StatelessWidget {
     required this.cryptoSymbol,
     this.onDelete,
     this.onEdit,
+    this.onTap,
   });
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -81,7 +83,9 @@ class TransactionTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete_outline, color: AppTheme.loss),
       ),
-      child: Container(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppTheme.divider, width: 0.5)),
@@ -135,7 +139,8 @@ class TransactionTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 transaction.pricePerCoin > 0
                     ? Text(
-                        Formatters.formatCurrency(transaction.totalValue),
+                        '${Formatters.formatCurrency(transaction.totalValue)}'
+                        '  @ ${Formatters.formatPrice(transaction.pricePerCoin)}',
                         style: const TextStyle(
                             color: AppTheme.textSecondary, fontSize: 12),
                       )
@@ -199,6 +204,7 @@ class TransactionTile extends StatelessWidget {
               ),
             ],
           ],
+        ),
         ),
       ),
     );

@@ -15,6 +15,7 @@ import '../bloc/portfolio/portfolio_event.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/entities/entry_signal.dart';
 import '../../domain/entities/price_point.dart';
+import '../widgets/transaction_detail_sheet.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/add_transaction_sheet.dart';
 import '../widgets/stat_row.dart';
@@ -110,6 +111,27 @@ class _CryptoDetailView extends StatelessWidget {
                     onEditTx: (tx) => _showAddTransaction(
                         context, crypto.id, crypto.symbol,
                         existing: tx),
+                    onOpenTx: (tx) => showTransactionDetail(
+                      context,
+                      transaction: tx,
+                      symbol: crypto.symbol,
+                      currentPrice: crypto.currentPrice,
+                      avgBuyPrice: crypto.avgBuyPrice,
+                      onEdit: () => _showAddTransaction(
+                          context, crypto.id, crypto.symbol,
+                          existing: tx),
+                      onDelete: () async {
+                        final confirm = await _confirmDelete(context);
+                        if (confirm == true && context.mounted) {
+                          context
+                              .read<CryptoDetailCubit>()
+                              .removeTransaction(tx.id);
+                          context
+                              .read<PortfolioBloc>()
+                              .add(const RefreshPortfolioEvent());
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 100),
                 ],
@@ -202,6 +224,27 @@ class _CryptoDetailView extends StatelessWidget {
                       onEditTx: (tx) => _showAddTransaction(
                           context, crypto.id, crypto.symbol,
                           existing: tx),
+                    onOpenTx: (tx) => showTransactionDetail(
+                        context,
+                        transaction: tx,
+                        symbol: crypto.symbol,
+                        currentPrice: crypto.currentPrice,
+                        avgBuyPrice: crypto.avgBuyPrice,
+                        onEdit: () => _showAddTransaction(
+                            context, crypto.id, crypto.symbol,
+                            existing: tx),
+                        onDelete: () async {
+                          final confirm = await _confirmDelete(context);
+                          if (confirm == true && context.mounted) {
+                            context
+                                .read<CryptoDetailCubit>()
+                                .removeTransaction(tx.id);
+                            context
+                                .read<PortfolioBloc>()
+                                .add(const RefreshPortfolioEvent());
+                          }
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -310,8 +353,8 @@ class _CryptoDetailView extends StatelessWidget {
       Color pnlColor, CryptoDetailLoaded state) {
     final marketData = state.marketData;
     final signal = EntrySignal.compute(
-      currentPrice: crypto.currentPrice as double,
-      avgBuyPrice: crypto.avgBuyPrice as double,
+      currentPrice: crypto.currentPrice,
+      avgBuyPrice: crypto.avgBuyPrice,
       athChangePercent: marketData?.athChangePercent,
       change30d: marketData?.change30d,
     );
@@ -532,6 +575,7 @@ class _TransactionSection extends StatefulWidget {
   final EdgeInsets padding;
   final Future<void> Function(TransactionEntity tx) onDeleteTx;
   final void Function(TransactionEntity tx) onEditTx;
+  final void Function(TransactionEntity tx) onOpenTx;
 
   const _TransactionSection({
     required this.transactions,
@@ -540,6 +584,7 @@ class _TransactionSection extends StatefulWidget {
     required this.padding,
     required this.onDeleteTx,
     required this.onEditTx,
+    required this.onOpenTx,
   });
 
   @override
@@ -683,6 +728,7 @@ class _TransactionSectionState extends State<_TransactionSection> {
                 cryptoSymbol: widget.cryptoSymbol,
                 onDelete: () => widget.onDeleteTx(filtered[i]),
                 onEdit: () => widget.onEditTx(filtered[i]),
+                onTap: () => widget.onOpenTx(filtered[i]),
               ),
             ),
           )
@@ -694,6 +740,7 @@ class _TransactionSectionState extends State<_TransactionSection> {
                   cryptoSymbol: widget.cryptoSymbol,
                   onDelete: () => widget.onDeleteTx(tx),
                   onEdit: () => widget.onEditTx(tx),
+                  onTap: () => widget.onOpenTx(tx),
                 ),
               )),
       ],
