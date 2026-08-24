@@ -1,4 +1,12 @@
 class AppConstants {
+  /// Shown next to the title so the running build is identifiable at a
+  /// glance — telling whether a PWA has actually picked up a deployment was
+  /// guesswork until now.
+  ///
+  /// Kept in step with `pubspec.yaml` by a test rather than by discipline: a
+  /// version label that can drift will eventually lie.
+  static const String appVersion = '1.2.0';
+
   // ── CoinGecko ─────────────────────────────────────────────────────────────
   static const String coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';
   static const String coingeckoApiKey = 'CG-PbBxVvGjPJKaYE7L3GhrqM5L';

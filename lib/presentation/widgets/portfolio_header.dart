@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 
@@ -43,13 +44,30 @@ class PortfolioHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'My Portfolio',
-                style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'My Portfolio',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'v${AppConstants.appVersion}',
+                      style: const TextStyle(
+                        color: AppTheme.textTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               Container(
                 padding: const EdgeInsets.all(8),

@@ -1,5 +1,34 @@
 import '../entities/transaction_entity.dart';
 
+/// A single completed sale, settled at the cost basis that applied on its own
+/// date. This is the unit a tax return is built from: proceeds, the basis
+/// relieved against them, and the gain that fell out.
+class Disposal {
+  final String transactionId;
+  final DateTime date;
+  final double quantity;
+
+  /// Cash received, net of the selling fee.
+  final double proceeds;
+
+  /// Cost attributed to the units sold, at the moving average on that day.
+  final double costBasis;
+
+  const Disposal({
+    required this.transactionId,
+    required this.date,
+    required this.quantity,
+    required this.proceeds,
+    required this.costBasis,
+  });
+
+  double get gain => proceeds - costBasis;
+
+  double get gainPercent => costBasis > 0 ? (gain / costBasis) * 100 : 0;
+
+  int get taxYear => date.year;
+}
+
 /// Chronological moving-average (AVCO) cost basis for one coin.
 ///
 /// Replaces the previous formula, which computed realized P&L as
@@ -26,12 +55,16 @@ class CostBasisLedger {
   /// Cost basis still tied up in the units held.
   final double remainingCost;
 
+  /// Every sale, in the order it happened.
+  final List<Disposal> disposals;
+
   const CostBasisLedger({
     required this.realizedPnl,
     required this.proceeds,
     required this.costOfSold,
     required this.remainingQuantity,
     required this.remainingCost,
+    this.disposals = const [],
   });
 
   static const empty = CostBasisLedger(
@@ -76,6 +109,7 @@ class CostBasisLedger {
     var realized = 0.0;
     var proceeds = 0.0;
     var costOfSold = 0.0;
+    final disposals = <Disposal>[];
 
     for (final t in ordered) {
       switch (t.type) {
@@ -97,6 +131,13 @@ class CostBasisLedger {
           proceeds += t.netProceeds;
           costOfSold += basis;
           realized += t.netProceeds - basis;
+          disposals.add(Disposal(
+            transactionId: t.id,
+            date: t.date,
+            quantity: t.quantity,
+            proceeds: t.netProceeds,
+            costBasis: basis,
+          ));
 
           cost -= basis;
           qty -= t.quantity;
@@ -119,6 +160,7 @@ class CostBasisLedger {
       costOfSold: costOfSold,
       remainingQuantity: qty,
       remainingCost: cost < 0 ? 0 : cost,
+      disposals: disposals,
     );
   }
 }

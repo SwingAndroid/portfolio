@@ -4,8 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/sync/sync_status.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/datasources/cloud/sync_service.dart';
 import '../../injection_container.dart';
+import 'data_export_sheet.dart';
 import '../bloc/auth/auth_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
@@ -162,96 +162,6 @@ class SyncBanner extends StatelessWidget {
       portfolio.add(const RefreshPortfolioEvent());
     }
   }
-}
-
-/// Shows the full local dataset as JSON so it can be copied out of the app.
-///
-/// Deliberately dependency-free and offline-only: it reads Hive and nothing
-/// else, so it works when every network path is broken.
-Future<void> showBackupSheet(BuildContext context) async {
-  final json = await sl<SyncService>().exportJson();
-  if (!context.mounted) return;
-
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: AppTheme.surface,
-    isScrollControlled: true,
-    builder: (ctx) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      builder: (ctx, scrollController) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.save_alt_rounded,
-                    color: AppTheme.primary, size: 18),
-                SizedBox(width: 8),
-                Text('Local backup',
-                    style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Everything stored on this device, including anything the cloud '
-              'has never received. Copy this somewhere safe.',
-              style: const TextStyle(
-                  color: AppTheme.textTertiary, fontSize: 12, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: json));
-                if (!ctx.mounted) return;
-                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                  backgroundColor: AppTheme.surface,
-                  content: Text('Backup copied to clipboard',
-                      style: TextStyle(color: AppTheme.textPrimary)),
-                ));
-              },
-              icon: const Icon(Icons.copy_rounded, size: 18),
-              label: Text('Copy all (${json.length ~/ 1024} KB)'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.black,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.cardBorder),
-                ),
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: SelectableText(
-                    json,
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 10,
-                        fontFamily: 'monospace',
-                        height: 1.35),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 /// Signs out, but never silently. If local data has not reached the cloud the
