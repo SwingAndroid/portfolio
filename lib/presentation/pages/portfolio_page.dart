@@ -22,7 +22,18 @@ class PortfolioPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<PortfolioHistoryCubit>(),
+      create: (ctx) {
+        final cubit = sl<PortfolioHistoryCubit>();
+        // The listener below only fires on a *change* of portfolio state. On
+        // returning to this page the portfolio is usually already loaded, so
+        // nothing would fire and the chart would sit on its initial state
+        // forever. Kick it off from whatever is already there.
+        final portfolio = ctx.read<PortfolioBloc>().state;
+        if (portfolio is PortfolioLoaded && portfolio.cryptos.isNotEmpty) {
+          cubit.load(portfolio.cryptos);
+        }
+        return cubit;
+      },
       child: const _PortfolioView(),
     );
   }

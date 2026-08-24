@@ -98,14 +98,25 @@ class PortfolioHistoryService {
     }
   }
 
+  /// Spacing between per-coin chart requests.
+  ///
+  /// CoinGecko allows 30 calls a minute for the whole device. Rebuilding a
+  /// year costs one call per held coin, and firing them back to back leaves
+  /// no headroom for the coin pages the user is about to open. Spreading them
+  /// keeps the burst off the limit.
+  static const _requestSpacing = Duration(milliseconds: 300);
+
   Future<DailyPriceIndex> _fetchPrices(
     List<CryptoEntity> cryptos, {
     required int days,
   }) async {
     final index = DailyPriceIndex();
+    var first = true;
     for (final crypto in cryptos) {
       // Coins no longer held contribute nothing to the value line.
       if (crypto.totalHoldings <= 0) continue;
+      if (!first) await Future<void>.delayed(_requestSpacing);
+      first = false;
       final chart = await repository.getMarketChart(crypto.coinId, days: days);
       index.add(
         crypto.coinId,
