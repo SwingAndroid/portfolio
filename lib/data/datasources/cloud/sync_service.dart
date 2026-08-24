@@ -97,6 +97,7 @@ class SyncService {
             'price_per_coin': t.pricePerCoin,
             'date': t.date.toUtc().toIso8601String(),
             'note': t.note,
+            'fee': t.fee,
           }
       ],
       'pending_deletes': pending,
@@ -249,6 +250,7 @@ class SyncService {
           pricePerCoin: (t['price_per_coin'] as num).toDouble(),
           date: DateTime.parse(t['date'] as String).toLocal(),
           note: t['note'] as String?,
+          fee: (t['fee'] as num?)?.toDouble() ?? 0,
         ));
       }
     } catch (e) {

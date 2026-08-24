@@ -26,6 +26,12 @@ class TransactionModel extends HiveObject {
   @HiveField(6)
   final String? note;
 
+  /// Added after the first release. Nullable on purpose: Hive returns null for
+  /// this field on every record written before it existed, so no migration and
+  /// no rewrite of the existing boxes is needed.
+  @HiveField(7)
+  final double? fee;
+
   TransactionModel({
     required this.id,
     required this.cryptoId,
@@ -34,6 +40,7 @@ class TransactionModel extends HiveObject {
     required this.pricePerCoin,
     required this.date,
     this.note,
+    this.fee,
   });
 
   TransactionEntity toEntity() => TransactionEntity(
@@ -44,6 +51,7 @@ class TransactionModel extends HiveObject {
     pricePerCoin: pricePerCoin,
     date: date,
     note: note,
+    fee: fee ?? 0,
   );
 
   factory TransactionModel.fromEntity(TransactionEntity entity) => TransactionModel(
@@ -54,5 +62,6 @@ class TransactionModel extends HiveObject {
     pricePerCoin: entity.pricePerCoin,
     date: entity.date,
     note: entity.note,
+    fee: entity.fee == 0 ? null : entity.fee,
   );
 }

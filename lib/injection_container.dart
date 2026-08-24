@@ -7,6 +7,7 @@ import 'core/sync/sync_status.dart';
 import 'data/datasources/cloud/supabase_datasource.dart';
 import 'data/datasources/cloud/sync_service.dart';
 import 'data/datasources/local/crypto_local_datasource.dart';
+import 'data/datasources/local/value_history_store.dart';
 import 'data/datasources/remote/crypto_remote_datasource.dart';
 import 'data/models/crypto_model.dart';
 import 'data/models/transaction_model.dart';
@@ -36,6 +37,10 @@ Future<void> initDependencies() async {
   // existing cryptos/transactions boxes are never migrated or rewritten.
   final pendingDeleteBox =
       await Hive.openBox<String>(AppConstants.pendingDeleteBoxName);
+  // Our own daily record of portfolio value. CoinGecko refuses history beyond
+  // 365 days, so this is the only way to ever have a multi-year curve.
+  final valueHistoryBox =
+      await Hive.openBox<String>(AppConstants.valueHistoryBoxName);
 
   // ── CoinGecko HTTP client ─────────────────────────────────────────────────
   final dio = Dio(BaseOptions(
@@ -49,6 +54,14 @@ Future<void> initDependencies() async {
       'Accept': 'application/json',
     },
   ));
+
+  // ── Value history ─────────────────────────────────────────────────────────
+  sl.registerLazySingleton<ValueHistoryStore>(
+    () => ValueHistoryStoreImpl(valueHistoryBox),
+  );
+  sl.registerLazySingleton<PortfolioSnapshotRecorder>(
+    () => PortfolioSnapshotRecorder(sl()),
+  );
 
   // ── Sync health (drives the banner; replaces silent catch blocks) ─────────
   sl.registerLazySingleton<SyncStatus>(() => SyncStatus());
@@ -107,6 +120,7 @@ Future<void> initDependencies() async {
       ));
 
   sl.registerFactory(() => PortfolioBloc(
+        snapshotRecorder: sl(),
         getPortfolio: sl(),
         addCrypto: sl(),
         deleteCrypto: sl(),

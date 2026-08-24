@@ -17,6 +17,11 @@ class TransactionEntity extends Equatable {
   final DateTime date;
   final String? note;
 
+  /// Trading fee paid on this transaction, in the same currency as
+  /// [pricePerCoin]. Defaults to zero so existing records — which predate the
+  /// field — behave exactly as before.
+  final double fee;
+
   const TransactionEntity({
     required this.id,
     required this.cryptoId,
@@ -25,10 +30,18 @@ class TransactionEntity extends Equatable {
     required this.pricePerCoin,
     required this.date,
     this.note,
+    this.fee = 0,
   });
 
   double get totalValue => quantity * pricePerCoin;
 
+  /// What acquiring these units actually cost, fee included.
+  double get grossCost => quantity * pricePerCoin + fee;
+
+  /// What disposing of them actually returned, fee deducted.
+  double get netProceeds => quantity * pricePerCoin - fee;
+
   @override
-  List<Object?> get props => [id, cryptoId, type, quantity, pricePerCoin, date, note];
+  List<Object?> get props =>
+      [id, cryptoId, type, quantity, pricePerCoin, date, note, fee];
 }

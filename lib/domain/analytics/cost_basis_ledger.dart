@@ -82,7 +82,8 @@ class CostBasisLedger {
         case TransactionType.buy:
         case TransactionType.transferIn:
           qty += t.quantity;
-          cost += t.quantity * t.pricePerCoin;
+          // The fee is part of what acquiring these units cost.
+          cost += t.grossCost;
 
         case TransactionType.sell:
           final avg = qty > 0 ? cost / qty : 0.0;
@@ -92,9 +93,10 @@ class CostBasisLedger {
           final relieved = t.quantity < qty ? t.quantity : qty;
           final basis = relieved * avg;
 
-          proceeds += t.quantity * t.pricePerCoin;
+          // Proceeds are what actually landed, after the fee.
+          proceeds += t.netProceeds;
           costOfSold += basis;
-          realized += t.quantity * t.pricePerCoin - basis;
+          realized += t.netProceeds - basis;
 
           cost -= basis;
           qty -= t.quantity;
@@ -102,6 +104,8 @@ class CostBasisLedger {
         case TransactionType.transferOut:
           // Moving coins elsewhere is not a disposal: it relieves basis but
           // realizes nothing. Counting it as proceeds was the latent bug.
+          // Any network fee recorded here is a sunk expense outside the
+          // position, so it does not touch the basis of what remains.
           final avg = qty > 0 ? cost / qty : 0.0;
           final relieved = t.quantity < qty ? t.quantity : qty;
           cost -= relieved * avg;

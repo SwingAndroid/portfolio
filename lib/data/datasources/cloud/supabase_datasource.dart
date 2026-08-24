@@ -63,6 +63,9 @@ class SupabaseDataSourceImpl implements SupabaseDataSource {
         'price_per_coin': t.pricePerCoin,
         'date': t.date.toUtc().toIso8601String(),
         'note': t.note,
+        // Null rather than 0 so an unrecorded fee stays distinguishable from
+        // a genuinely free transaction.
+        'fee': t.fee == 0 ? null : t.fee,
       };
 
   @override

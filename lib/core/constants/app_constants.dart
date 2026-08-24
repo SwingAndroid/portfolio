@@ -16,6 +16,7 @@ class AppConstants {
   static const String cryptoBoxName = 'cryptos';
   static const String transactionBoxName = 'transactions';
   static const String pendingDeleteBoxName = 'pending_deletes';
+  static const String valueHistoryBoxName = 'value_history';
 
   static const Duration priceCacheDuration = Duration(minutes: 5);
 }

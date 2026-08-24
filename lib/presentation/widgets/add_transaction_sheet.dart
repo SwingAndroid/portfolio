@@ -63,12 +63,15 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
   }
 
+  final _feeCtrl = TextEditingController();
+
   bool get _isTransfer => _type.isTransfer;
 
   @override
   void dispose() {
     _quantityCtrl.dispose();
     _priceCtrl.dispose();
+    _feeCtrl.dispose();
     super.dispose();
   }
 
@@ -181,6 +184,36 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     final parsed = Formatters.tryParseNum(v);
                     if (parsed == null || parsed < 0) {
                       return 'Enter a valid price';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Fee — folded into cost basis on the way in, netted off
+                // proceeds on the way out.
+                TextFormField(
+                  controller: _feeCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: _numberFormatters,
+                  style: const TextStyle(color: AppTheme.textPrimary),
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Fee (optional)',
+                    hintText: '0.00',
+                    prefixText: '\$ ',
+                    prefixStyle: TextStyle(color: AppTheme.textSecondary),
+                    helperText: 'Raises your cost on a buy, lowers proceeds '
+                        'on a sell',
+                    helperStyle:
+                        TextStyle(color: AppTheme.textTertiary, fontSize: 11),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final parsed = Formatters.tryParseNum(v);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid fee';
                     }
                     return null;
                   },
@@ -319,7 +352,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   Widget _buildTotalPreview() {
     final qty = Formatters.tryParseNum(_quantityCtrl.text) ?? 0;
     final price = Formatters.tryParseNum(_priceCtrl.text) ?? 0;
-    final total = qty * price;
+    final fee = Formatters.tryParseNum(_feeCtrl.text) ?? 0;
+    final gross = qty * price;
+    // A buy costs more than the ticket; a sale returns less.
+    final total = _type == TransactionType.sell ? gross - fee : gross + fee;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -332,7 +368,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            _isTransfer ? 'Cost basis total' : 'Total',
+            _isTransfer
+                ? 'Cost basis total'
+                : (_type == TransactionType.sell
+                    ? 'Net proceeds'
+                    : 'Total cost'),
             style: const TextStyle(color: AppTheme.textSecondary),
           ),
           Text(
@@ -383,6 +423,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       quantity: Formatters.tryParseNum(_quantityCtrl.text) ?? 0,
       pricePerCoin: pricePerCoin,
       date: _date,
+      fee: Formatters.tryParseNum(_feeCtrl.text) ?? 0,
     );
 
     await context.read<CryptoDetailCubit>().addNewTransaction(transaction);

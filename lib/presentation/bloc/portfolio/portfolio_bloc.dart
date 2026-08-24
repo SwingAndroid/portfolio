@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/datasources/cloud/sync_service.dart';
+import '../../../data/datasources/local/value_history_store.dart';
+import '../../../domain/entities/crypto_entity.dart';
 import '../../../domain/usecases/get_portfolio_usecase.dart';
 import '../../../domain/usecases/add_crypto_usecase.dart';
 import '../../../domain/usecases/delete_crypto_usecase.dart';
@@ -13,8 +15,10 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
   final DeleteCryptoUsecase deleteCrypto;
   final GetCryptoPriceUsecase getCryptoPrice;
   final SyncService syncService;
+  final PortfolioSnapshotRecorder? snapshotRecorder;
 
   PortfolioBloc({
+    this.snapshotRecorder,
     required this.getPortfolio,
     required this.addCrypto,
     required this.deleteCrypto,
@@ -27,10 +31,22 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
     on<DeleteCryptoEvent>(_onDeleteCrypto);
   }
 
+  /// Writes today's value once the portfolio is priced.
+  ///
+  /// Fire-and-forget: a failed snapshot must never break a page load, and the
+  /// recorder itself refuses incomplete readings.
+  Future<List<CryptoEntity>> _loadAndRecord() async {
+    final cryptos = await getPortfolio();
+    try {
+      await snapshotRecorder?.recordIfComplete(cryptos);
+    } catch (_) {}
+    return cryptos;
+  }
+
   Future<void> _onLoad(LoadPortfolioEvent event, Emitter<PortfolioState> emit) async {
     emit(const PortfolioLoading());
     try {
-      final cryptos = await getPortfolio();
+      final cryptos = await _loadAndRecord();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {
       emit(PortfolioError(e.toString()));
@@ -45,12 +61,12 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
       // Push any local-only records first, then pull. Refreshing used to only
       // pull, so a backlog could never leave the device.
       await syncService.syncAll();
-      final cryptos = await getPortfolio();
+      final cryptos = await _loadAndRecord();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {
       // Fallback: reload from local cache even if cloud sync fails
       try {
-        final cryptos = await getPortfolio();
+        final cryptos = await _loadAndRecord();
         emit(PortfolioLoaded(cryptos: cryptos));
       } catch (_) {
         emit(PortfolioError(e.toString()));
@@ -61,7 +77,7 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
   Future<void> _onAddCrypto(AddCryptoEvent event, Emitter<PortfolioState> emit) async {
     try {
       await addCrypto(event.crypto);
-      final cryptos = await getPortfolio();
+      final cryptos = await _loadAndRecord();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {
       emit(PortfolioError(e.toString()));
@@ -71,7 +87,7 @@ class PortfolioBloc extends Bloc<PortfolioEvent, PortfolioState> {
   Future<void> _onDeleteCrypto(DeleteCryptoEvent event, Emitter<PortfolioState> emit) async {
     try {
       await deleteCrypto(event.cryptoId);
-      final cryptos = await getPortfolio();
+      final cryptos = await _loadAndRecord();
       emit(PortfolioLoaded(cryptos: cryptos));
     } catch (e) {
       emit(PortfolioError(e.toString()));
