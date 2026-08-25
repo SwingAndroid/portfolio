@@ -9,6 +9,7 @@ import 'data/datasources/cloud/sync_service.dart';
 import 'data/datasources/local/crypto_local_datasource.dart';
 import 'data/datasources/local/category_store.dart';
 import 'data/datasources/local/value_history_store.dart';
+import 'data/services/basis_backfill_service.dart';
 import 'data/services/benchmark_service.dart';
 import 'data/services/diversification_service.dart';
 import 'data/services/portfolio_history_service.dart';
@@ -27,6 +28,7 @@ import 'domain/usecases/delete_transaction_usecase.dart';
 import 'domain/usecases/get_crypto_price_usecase.dart';
 import 'domain/usecases/delete_crypto_usecase.dart';
 import 'presentation/bloc/auth/auth_cubit.dart';
+import 'presentation/bloc/basis_gap/basis_gap_cubit.dart';
 import 'presentation/bloc/benchmark/benchmark_cubit.dart';
 import 'presentation/bloc/diversification/diversification_cubit.dart';
 import 'presentation/bloc/history/portfolio_history_cubit.dart';
@@ -81,6 +83,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<DiversificationService>(
     () => DiversificationService(repository: sl(), categories: sl()),
+  );
+  sl.registerLazySingleton<BasisBackfillService>(
+    () => BasisBackfillService(sl()),
   );
   sl.registerLazySingleton<BenchmarkService>(
     () => BenchmarkService(repository: sl(), history: sl()),
@@ -166,6 +171,7 @@ Future<void> initDependencies() async {
   sl.registerFactory(() => PortfolioHistoryCubit(service: sl()));
   sl.registerFactory(() => DiversificationCubit(service: sl()));
   sl.registerFactory(() => BenchmarkCubit(service: sl()));
+  sl.registerFactory(() => BasisGapCubit(service: sl()));
 
   sl.registerFactory(() => PortfolioBloc(
         snapshotRecorder: sl(),

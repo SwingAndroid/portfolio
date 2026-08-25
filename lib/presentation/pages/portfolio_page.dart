@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
+import '../../domain/analytics/basis_gap.dart';
 import '../../injection_container.dart';
 import '../bloc/benchmark/benchmark_cubit.dart';
 import '../bloc/diversification/diversification_cubit.dart';
@@ -12,6 +13,7 @@ import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
 import '../widgets/allocation_chart.dart';
+import '../widgets/basis_gap_card.dart';
 import '../widgets/benchmark_card.dart';
 import '../widgets/diversification_card.dart';
 import '../widgets/performance_card.dart';
@@ -180,6 +182,21 @@ class _PortfolioView extends StatelessWidget {
                           isDesktop ? 16 : 12,
                         ),
                         child: DiversificationCard(cryptos: state.cryptos),
+                      ),
+                    ),
+
+                  // Holdings the ledger believes were free
+                  if (state is PortfolioLoaded && state.cryptos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child:
+                            BasisGapCard(gaps: findBasisGaps(state.cryptos)),
                       ),
                     ),
 
