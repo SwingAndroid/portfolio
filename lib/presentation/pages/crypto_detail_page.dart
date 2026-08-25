@@ -110,7 +110,7 @@ class _CryptoDetailView extends StatelessWidget {
                     },
                     onEditTx: (tx) => _showAddTransaction(
                         context, crypto.id, crypto.symbol,
-                        existing: tx),
+                        coinId: crypto.coinId, existing: tx),
                     onOpenTx: (tx) => showTransactionDetail(
                       context,
                       transaction: tx,
@@ -119,7 +119,7 @@ class _CryptoDetailView extends StatelessWidget {
                       avgBuyPrice: crypto.avgBuyPrice,
                       onEdit: () => _showAddTransaction(
                           context, crypto.id, crypto.symbol,
-                          existing: tx),
+                          coinId: crypto.coinId, existing: tx),
                       onDelete: () async {
                         final confirm = await _confirmDelete(context);
                         if (confirm == true && context.mounted) {
@@ -144,7 +144,8 @@ class _CryptoDetailView extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
         child: ElevatedButton(
           onPressed: () =>
-              _showAddTransaction(context, crypto.id, crypto.symbol),
+              _showAddTransaction(context, crypto.id, crypto.symbol,
+                  coinId: crypto.coinId),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primary,
             foregroundColor: Colors.black,
@@ -189,7 +190,8 @@ class _CryptoDetailView extends StatelessWidget {
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: () => _showAddTransaction(
-                              context, crypto.id, crypto.symbol),
+                              context, crypto.id, crypto.symbol,
+                              coinId: crypto.coinId),
                           icon: const Icon(Icons.add,
                               color: Colors.black, size: 18),
                           label: const Text('Add Transaction'),
@@ -223,7 +225,7 @@ class _CryptoDetailView extends StatelessWidget {
                       },
                       onEditTx: (tx) => _showAddTransaction(
                           context, crypto.id, crypto.symbol,
-                          existing: tx),
+                          coinId: crypto.coinId, existing: tx),
                     onOpenTx: (tx) => showTransactionDetail(
                         context,
                         transaction: tx,
@@ -495,6 +497,7 @@ class _CryptoDetailView extends StatelessWidget {
     BuildContext context,
     String cryptoId,
     String symbol, {
+    String? coinId,
     TransactionEntity? existing,
   }) {
     if (Responsive.isDesktop(context)) {
@@ -512,6 +515,7 @@ class _CryptoDetailView extends StatelessWidget {
               child: AddTransactionSheet(
                 cryptoId: cryptoId,
                 cryptoSymbol: symbol,
+                coinId: coinId,
                 existing: existing,
               ),
             ),
@@ -531,6 +535,7 @@ class _CryptoDetailView extends StatelessWidget {
           child: AddTransactionSheet(
             cryptoId: cryptoId,
             cryptoSymbol: symbol,
+            coinId: coinId,
             existing: existing,
           ),
         ),

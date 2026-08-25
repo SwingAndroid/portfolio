@@ -4,12 +4,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../domain/analytics/price_on_date.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../bloc/crypto_detail/crypto_detail_cubit.dart';
 
 class AddTransactionSheet extends StatefulWidget {
   final String cryptoId;
   final String cryptoSymbol;
+
+  /// CoinGecko id, so the sheet can look up what the coin was worth on the
+  /// date being entered.
+  final String? coinId;
 
   /// When set, the sheet edits this row instead of creating one.
   ///
@@ -21,6 +26,7 @@ class AddTransactionSheet extends StatefulWidget {
     super.key,
     required this.cryptoId,
     required this.cryptoSymbol,
+    this.coinId,
     this.existing,
   });
 
@@ -93,8 +99,75 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   final _feeCtrl = TextEditingController();
 
+  bool _lookingUpPrice = false;
+  String? _priceLookupNote;
+
+  /// Whether the price field holds a looked-up figure rather than a typed one.
+  ///
+  /// A looked-up price belongs to a specific day, so changing the date makes it
+  /// stale and it gets fetched again. A typed price is the user's own and is
+  /// never overwritten.
+  bool _autoFilledPrice = false;
+
   bool get _isTransfer => _type.isTransfer;
   bool get _isReward => _type == TransactionType.reward;
+
+  /// Fills the price field with what the coin was worth on the chosen date.
+  ///
+  /// Uses the price *on that day*, not today's: a reward received last week is
+  /// worth what it was worth last week, and filling in the current figure
+  /// would record the wrong income and the wrong cost basis.
+  Future<void> _useMarketPrice() async {
+    final coinId = widget.coinId;
+    if (coinId == null || _lookingUpPrice) return;
+
+    setState(() {
+      _lookingUpPrice = true;
+      _priceLookupNote = null;
+    });
+
+    try {
+      final repository = context.read<CryptoDetailCubit>().repository;
+      double? price;
+
+      if (isToday(_date)) {
+        final now = await repository.getCryptoPrice(coinId);
+        if (now > 0) price = now;
+      } else {
+        // Historical prices only reach back a year on the free tier.
+        final chart = await repository.getMarketChart(coinId, days: 365);
+        price = priceOnDate(chart, _date);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _lookingUpPrice = false;
+        if (price == null || price <= 0) {
+          _priceLookupNote = 'No price available for that date';
+        } else {
+          _priceCtrl.text = _trim(price);
+          _autoFilledPrice = true;
+          _priceLookupNote = isToday(_date)
+              ? 'Filled with the current price'
+              : 'Filled with the price on '
+                  '${Formatters.formatShortDate(_date)}';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _lookingUpPrice = false;
+        _priceLookupNote = 'Could not reach the price service';
+      });
+    }
+  }
+
+  /// Enough decimals to matter, without a wall of zeros on a cheap coin.
+  static String _trim(double price) {
+    if (price >= 100) return price.toStringAsFixed(2);
+    if (price >= 1) return price.toStringAsFixed(4);
+    return price.toStringAsFixed(6);
+  }
 
   @override
   void dispose() {
@@ -183,7 +256,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: _numberFormatters,
                   style: const TextStyle(color: AppTheme.textPrimary),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(() {
+                    // Typing takes ownership of the field back.
+                    _autoFilledPrice = false;
+                    _priceLookupNote = null;
+                  }),
                   decoration: InputDecoration(
                     labelText: _isReward
                         ? 'Value per coin when received'
@@ -194,14 +271,36 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     prefixText: '\$ ',
                     prefixStyle:
                         const TextStyle(color: AppTheme.textSecondary),
-                    helperText: _isReward
-                        ? 'Taxed as income at this value, and it becomes '
-                            'your cost basis'
-                        : _isTransfer
-                            ? 'Leave empty if unknown'
-                            : null,
-                    helperStyle:
-                        const TextStyle(color: AppTheme.textTertiary, fontSize: 11),
+                    helperText: _priceLookupNote ??
+                        (_isReward
+                            ? 'Its value on the day it landed becomes your '
+                                'cost basis'
+                            : _isTransfer
+                                ? 'Leave empty if unknown'
+                                : null),
+                    helperStyle: const TextStyle(
+                        color: AppTheme.textTertiary, fontSize: 11),
+                    suffixIcon: widget.coinId == null
+                        ? null
+                        : _lookingUpPrice
+                            ? const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.primary),
+                                ),
+                              )
+                            : IconButton(
+                                tooltip: isToday(_date)
+                                    ? 'Use the current price'
+                                    : 'Use the price on that date',
+                                onPressed: _useMarketPrice,
+                                icon: const Icon(Icons.bolt_rounded, size: 18),
+                                color: AppTheme.primary,
+                              ),
                   ),
                   validator: (v) {
                     if (_isTransfer || _isReward) {
@@ -386,7 +485,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 icon: Icons.card_giftcard_rounded,
                 isSelected: _type == TransactionType.reward,
                 color: const Color(0xFFA855F7),
-                onTap: () => setState(() => _type = TransactionType.reward),
+                onTap: () {
+                  setState(() => _type = TransactionType.reward);
+                  // A reward's value is by definition the price when it
+                  // landed, so there is nothing to ask the user for.
+                  if (_priceCtrl.text.trim().isEmpty) _useMarketPrice();
+                },
               ),
               // Keeps the reward chip the same width as the row above.
               const Expanded(child: SizedBox()),
@@ -454,7 +558,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked == null || picked == _date) return;
+    setState(() => _date = picked);
+    // A looked-up price belonged to the old date; fetch the new day's instead
+    // of silently leaving the wrong figure in the field.
+    if (_autoFilledPrice) _useMarketPrice();
   }
 
   Future<void> _submit() async {
