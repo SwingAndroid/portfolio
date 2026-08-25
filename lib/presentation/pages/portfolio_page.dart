@@ -5,12 +5,14 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../injection_container.dart';
+import '../bloc/benchmark/benchmark_cubit.dart';
 import '../bloc/diversification/diversification_cubit.dart';
 import '../bloc/history/portfolio_history_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
 import '../widgets/allocation_chart.dart';
+import '../widgets/benchmark_card.dart';
 import '../widgets/diversification_card.dart';
 import '../widgets/performance_card.dart';
 import '../widgets/sync_banner.dart';
@@ -49,6 +51,16 @@ class PortfolioPage extends StatelessWidget {
             return cubit;
           },
         ),
+        BlocProvider(
+          create: (ctx) {
+            final cubit = sl<BenchmarkCubit>();
+            final portfolio = ctx.read<PortfolioBloc>().state;
+            if (portfolio is PortfolioLoaded && portfolio.cryptos.isNotEmpty) {
+              cubit.load(portfolio.cryptos);
+            }
+            return cubit;
+          },
+        ),
       ],
       child: const _PortfolioView(),
     );
@@ -74,6 +86,7 @@ class _PortfolioView extends StatelessWidget {
             if (state is PortfolioLoaded && state.cryptos.isNotEmpty) {
               context.read<PortfolioHistoryCubit>().load(state.cryptos);
               context.read<DiversificationCubit>().load(state.cryptos);
+              context.read<BenchmarkCubit>().load(state.cryptos);
             }
           },
           builder: (context, state) {
@@ -125,6 +138,20 @@ class _PortfolioView extends StatelessWidget {
                           isDesktop ? 16 : 12,
                         ),
                         child: PerformanceCard(state: state),
+                      ),
+                    ),
+
+                  // The return alone never says whether it was good
+                  if (state is PortfolioLoaded && state.cryptos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child: BenchmarkCard(cryptos: state.cryptos),
                       ),
                     ),
 
