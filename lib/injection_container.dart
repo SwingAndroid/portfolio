@@ -11,7 +11,10 @@ import 'data/datasources/local/category_store.dart';
 import 'data/datasources/local/value_history_store.dart';
 import 'data/services/diversification_service.dart';
 import 'data/services/portfolio_history_service.dart';
+import 'data/datasources/remote/coinmarketcap_datasource.dart';
 import 'data/datasources/remote/crypto_remote_datasource.dart';
+import 'data/datasources/remote/failover_datasource.dart';
+import 'data/datasources/remote/symbol_registry.dart';
 import 'data/models/crypto_model.dart';
 import 'data/models/transaction_model.dart';
 import 'data/repositories/crypto_repository_impl.dart';
@@ -84,6 +87,20 @@ Future<void> initDependencies() async {
   // ── Sync health (drives the banner; replaces silent catch blocks) ─────────
   sl.registerLazySingleton<SyncStatus>(() => SyncStatus());
 
+  // ── Backup price provider ─────────────────────────────────────────────────
+  // A separate 50-per-minute budget, used only when CoinGecko will not answer.
+  final cmcDio = Dio(BaseOptions(
+    baseUrl: AppConstants.coinmarketcapBaseUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 30),
+    headers: {
+      'X-CMC_PRO_API_KEY': AppConstants.coinmarketcapApiKey,
+      'Accept': 'application/json',
+    },
+  ));
+
+  sl.registerLazySingleton<SymbolRegistry>(() => SymbolRegistry());
+
   // ── Supabase ──────────────────────────────────────────────────────────────
   final supabaseClient = Supabase.instance.client;
 
@@ -100,7 +117,10 @@ Future<void> initDependencies() async {
     ),
   );
   sl.registerLazySingleton<CryptoRemoteDatasource>(
-    () => CryptoRemoteDatasourceImpl(dio: dio),
+    () => FailoverRemoteDatasource(
+      primary: CryptoRemoteDatasourceImpl(dio: dio),
+      backup: CoinMarketCapDatasource(dio: cmcDio, registry: sl()),
+    ),
   );
 
   // ── Sync service ──────────────────────────────────────────────────────────
@@ -118,6 +138,7 @@ Future<void> initDependencies() async {
       remoteDatasource: sl(),
       cloudDatasource: sl(),
       syncStatus: sl(),
+      symbols: sl(),
     ),
   );
 

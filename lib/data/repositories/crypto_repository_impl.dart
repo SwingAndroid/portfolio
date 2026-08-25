@@ -6,6 +6,7 @@ import '../../domain/entities/price_quote.dart';
 import '../../domain/repositories/crypto_repository.dart';
 import '../datasources/local/crypto_local_datasource.dart';
 import '../datasources/remote/crypto_remote_datasource.dart';
+import '../datasources/remote/symbol_registry.dart';
 import '../datasources/cloud/supabase_datasource.dart';
 
 class CryptoRepositoryImpl implements CryptoRepository {
@@ -14,11 +15,17 @@ class CryptoRepositoryImpl implements CryptoRepository {
   final SupabaseDataSource? cloudDatasource;
   final SyncStatus? syncStatus;
 
+  /// Lets the backup provider translate CoinGecko ids into the tickers it
+  /// speaks. Filled from stored coins, which already carry both, so no request
+  /// is spent bridging the two id spaces.
+  final SymbolRegistry? symbols;
+
   CryptoRepositoryImpl({
     required this.localDatasource,
     required this.remoteDatasource,
     this.cloudDatasource,
     this.syncStatus,
+    this.symbols,
   });
 
   /// Runs a cloud write without ever failing the user's action — local Hive is
@@ -40,6 +47,10 @@ class CryptoRepositoryImpl implements CryptoRepository {
   Future<List<CryptoEntity>> getPortfolio() async {
     final cryptoModels = await localDatasource.getCryptos();
     if (cryptoModels.isEmpty) return [];
+
+    symbols?.registerAll({
+      for (final c in cryptoModels) c.coinId: c.symbol,
+    });
 
     final coinIds = cryptoModels.map((c) => c.coinId).toList();
     Map<String, PriceQuote> prices = {};
@@ -67,6 +78,8 @@ class CryptoRepositoryImpl implements CryptoRepository {
     final cryptoModels = await localDatasource.getCryptos();
     final model = cryptoModels.where((c) => c.id == id).firstOrNull;
     if (model == null) return null;
+
+    symbols?.register(model.coinId, model.symbol);
 
     final txModels = await localDatasource.getTransactionsForCrypto(id);
     final transactions = txModels.map((t) => t.toEntity()).toList();
