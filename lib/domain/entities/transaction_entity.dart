@@ -37,6 +37,14 @@ class TransactionEntity extends Equatable {
   /// field — behave exactly as before.
   final double fee;
 
+  /// Ties the two legs of a crypto-for-crypto exchange together.
+  ///
+  /// Buying AAVE with ETH is one event recorded as two rows: a sale of ETH and
+  /// a purchase of AAVE. Without a shared reference nothing stops one leg from
+  /// being deleted or edited alone, which leaves coins acquired from nothing
+  /// or sold into nothing.
+  final String? swapId;
+
   const TransactionEntity({
     required this.id,
     required this.cryptoId,
@@ -46,6 +54,7 @@ class TransactionEntity extends Equatable {
     required this.date,
     this.note,
     this.fee = 0,
+    this.swapId,
   });
 
   double get totalValue => quantity * pricePerCoin;
@@ -74,5 +83,5 @@ class TransactionEntity extends Equatable {
 
   @override
   List<Object?> get props =>
-      [id, cryptoId, type, quantity, pricePerCoin, date, note, fee];
+      [id, cryptoId, type, quantity, pricePerCoin, date, note, fee, swapId];
 }

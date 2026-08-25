@@ -32,6 +32,11 @@ class TransactionModel extends HiveObject {
   @HiveField(7)
   final double? fee;
 
+  /// Index 8: the next free slot, verified against the generated adapter.
+  /// Nullable so records written before it existed read back as null.
+  @HiveField(8)
+  final String? swapId;
+
   TransactionModel({
     required this.id,
     required this.cryptoId,
@@ -41,6 +46,7 @@ class TransactionModel extends HiveObject {
     required this.date,
     this.note,
     this.fee,
+    this.swapId,
   });
 
   TransactionEntity toEntity() => TransactionEntity(
@@ -52,6 +58,7 @@ class TransactionModel extends HiveObject {
     date: date,
     note: note,
     fee: fee ?? 0,
+    swapId: swapId,
   );
 
   factory TransactionModel.fromEntity(TransactionEntity entity) => TransactionModel(
@@ -63,5 +70,6 @@ class TransactionModel extends HiveObject {
     date: entity.date,
     note: entity.note,
     fee: entity.fee == 0 ? null : entity.fee,
+    swapId: entity.swapId,
   );
 }
