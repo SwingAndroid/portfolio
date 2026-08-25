@@ -7,7 +7,9 @@ import 'core/sync/sync_status.dart';
 import 'data/datasources/cloud/supabase_datasource.dart';
 import 'data/datasources/cloud/sync_service.dart';
 import 'data/datasources/local/crypto_local_datasource.dart';
+import 'data/datasources/local/category_store.dart';
 import 'data/datasources/local/value_history_store.dart';
+import 'data/services/diversification_service.dart';
 import 'data/services/portfolio_history_service.dart';
 import 'data/datasources/remote/crypto_remote_datasource.dart';
 import 'data/models/crypto_model.dart';
@@ -21,6 +23,7 @@ import 'domain/usecases/delete_transaction_usecase.dart';
 import 'domain/usecases/get_crypto_price_usecase.dart';
 import 'domain/usecases/delete_crypto_usecase.dart';
 import 'presentation/bloc/auth/auth_cubit.dart';
+import 'presentation/bloc/diversification/diversification_cubit.dart';
 import 'presentation/bloc/history/portfolio_history_cubit.dart';
 import 'presentation/bloc/portfolio/portfolio_bloc.dart';
 
@@ -43,6 +46,10 @@ Future<void> initDependencies() async {
   // 365 days, so this is the only way to ever have a multi-year curve.
   final valueHistoryBox =
       await Hive.openBox<String>(AppConstants.valueHistoryBoxName);
+  // Sector labels barely ever change, so they are kept on disk rather than
+  // re-fetched — one request per coin per month instead of per visit.
+  final categoryBox =
+      await Hive.openBox<String>(AppConstants.categoryBoxName);
 
   // ── CoinGecko HTTP client ─────────────────────────────────────────────────
   final dio = Dio(BaseOptions(
@@ -63,6 +70,12 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<PortfolioSnapshotRecorder>(
     () => PortfolioSnapshotRecorder(sl()),
+  );
+  sl.registerLazySingleton<CategoryStore>(
+    () => CategoryStoreImpl(categoryBox),
+  );
+  sl.registerLazySingleton<DiversificationService>(
+    () => DiversificationService(repository: sl(), categories: sl()),
   );
   sl.registerLazySingleton<PortfolioHistoryService>(
     () => PortfolioHistoryService(repository: sl(), store: sl()),
@@ -125,6 +138,7 @@ Future<void> initDependencies() async {
       ));
 
   sl.registerFactory(() => PortfolioHistoryCubit(service: sl()));
+  sl.registerFactory(() => DiversificationCubit(service: sl()));
 
   sl.registerFactory(() => PortfolioBloc(
         snapshotRecorder: sl(),

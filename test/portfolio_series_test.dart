@@ -77,6 +77,8 @@ class FakeChartRepo implements CryptoRepository {
   Future<List<Map<String, dynamic>>> searchCoins(String q) async => [];
   @override
   Future<void> updateCoinId(String cryptoId, String newCoinId) async {}
+  @override
+  Future<List<String>> getCoinCategories(String id) async => const [];
 }
 
 TransactionEntity buy(String id, double qty, double price, DateTime date,

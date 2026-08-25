@@ -21,4 +21,7 @@ abstract class CryptoRepository {
   /// Persists a corrected [newCoinId] for the given portfolio entry, locally
   /// and in the cloud.
   Future<void> updateCoinId(String cryptoId, String newCoinId);
+
+  /// Sector labels for a coin.
+  Future<List<String>> getCoinCategories(String coinId);
 }

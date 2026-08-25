@@ -5,11 +5,13 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../injection_container.dart';
+import '../bloc/diversification/diversification_cubit.dart';
 import '../bloc/history/portfolio_history_cubit.dart';
 import '../bloc/portfolio/portfolio_bloc.dart';
 import '../bloc/portfolio/portfolio_event.dart';
 import '../bloc/portfolio/portfolio_state.dart';
 import '../widgets/allocation_chart.dart';
+import '../widgets/diversification_card.dart';
 import '../widgets/performance_card.dart';
 import '../widgets/sync_banner.dart';
 import '../widgets/crypto_card.dart';
@@ -21,19 +23,33 @@ class PortfolioPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (ctx) {
-        final cubit = sl<PortfolioHistoryCubit>();
-        // The listener below only fires on a *change* of portfolio state. On
-        // returning to this page the portfolio is usually already loaded, so
-        // nothing would fire and the chart would sit on its initial state
-        // forever. Kick it off from whatever is already there.
-        final portfolio = ctx.read<PortfolioBloc>().state;
-        if (portfolio is PortfolioLoaded && portfolio.cryptos.isNotEmpty) {
-          cubit.load(portfolio.cryptos);
-        }
-        return cubit;
-      },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (ctx) {
+            final cubit = sl<PortfolioHistoryCubit>();
+            // The listener below only fires on a *change* of portfolio state.
+            // On returning to this page the portfolio is usually already
+            // loaded, so nothing would fire and the chart would sit on its
+            // initial state forever. Kick it off from what is already there.
+            final portfolio = ctx.read<PortfolioBloc>().state;
+            if (portfolio is PortfolioLoaded && portfolio.cryptos.isNotEmpty) {
+              cubit.load(portfolio.cryptos);
+            }
+            return cubit;
+          },
+        ),
+        BlocProvider(
+          create: (ctx) {
+            final cubit = sl<DiversificationCubit>();
+            final portfolio = ctx.read<PortfolioBloc>().state;
+            if (portfolio is PortfolioLoaded && portfolio.cryptos.isNotEmpty) {
+              cubit.load(portfolio.cryptos);
+            }
+            return cubit;
+          },
+        ),
+      ],
       child: const _PortfolioView(),
     );
   }
@@ -57,6 +73,7 @@ class _PortfolioView extends StatelessWidget {
           listener: (context, state) {
             if (state is PortfolioLoaded && state.cryptos.isNotEmpty) {
               context.read<PortfolioHistoryCubit>().load(state.cryptos);
+              context.read<DiversificationCubit>().load(state.cryptos);
             }
           },
           builder: (context, state) {
@@ -122,6 +139,20 @@ class _PortfolioView extends StatelessWidget {
                           isDesktop ? 16 : 12,
                         ),
                         child: PortfolioValueChart(cryptos: state.cryptos),
+                      ),
+                    ),
+
+                  // Whether that split actually spreads any risk
+                  if (state is PortfolioLoaded && state.cryptos.length > 1)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isDesktop ? 32 : 16,
+                          0,
+                          isDesktop ? 32 : 16,
+                          isDesktop ? 16 : 12,
+                        ),
+                        child: DiversificationCard(cryptos: state.cryptos),
                       ),
                     ),
 

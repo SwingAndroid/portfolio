@@ -5,7 +5,7 @@ class AppConstants {
   ///
   /// Kept in step with `pubspec.yaml` by a test rather than by discipline: a
   /// version label that can drift will eventually lie.
-  static const String appVersion = '1.4.1';
+  static const String appVersion = '1.5.0';
 
   // ── CoinGecko ─────────────────────────────────────────────────────────────
   static const String coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';
@@ -25,6 +25,7 @@ class AppConstants {
   static const String transactionBoxName = 'transactions';
   static const String pendingDeleteBoxName = 'pending_deletes';
   static const String valueHistoryBoxName = 'value_history';
+  static const String categoryBoxName = 'coin_categories';
 
   static const Duration priceCacheDuration = Duration(minutes: 5);
 }

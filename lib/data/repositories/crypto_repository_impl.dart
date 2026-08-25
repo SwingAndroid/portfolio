@@ -139,6 +139,10 @@ class CryptoRepositoryImpl implements CryptoRepository {
       remoteDatasource.getMarketChart(coinId, days: days);
 
   @override
+  Future<List<String>> getCoinCategories(String coinId) =>
+      remoteDatasource.getCoinCategories(coinId);
+
+  @override
   Future<String?> resolveCoinId({
     required String symbol,
     required String name,

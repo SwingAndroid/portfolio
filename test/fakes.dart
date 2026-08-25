@@ -89,6 +89,8 @@ class OfflineRemote implements CryptoRemoteDatasource {
   Future<String?> resolveCoinId(
           {required String symbol, required String name}) async =>
       null;
+  @override
+  Future<List<String>> getCoinCategories(String id) async => const [];
 }
 
 class FakeCloud implements SupabaseDataSource {

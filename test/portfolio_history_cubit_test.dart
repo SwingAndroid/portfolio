@@ -47,6 +47,8 @@ class _NullRepo implements CryptoRepository {
   Future<List<Map<String, dynamic>>> searchCoins(String q) async => [];
   @override
   Future<void> updateCoinId(String a, String b) async {}
+  @override
+  Future<List<String>> getCoinCategories(String id) async => const [];
 }
 
 /// Counts how often the network-facing service is actually entered.

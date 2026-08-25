@@ -11,6 +11,9 @@ abstract class CryptoRemoteDatasource {
   Future<Map<String, PriceQuote>> getMultiplePrices(List<String> coinIds);
   Future<List<PricePoint>> getMarketChart(String coinId, {int days});
   Future<String?> resolveCoinId({required String symbol, required String name});
+
+  /// Sector labels for a coin, e.g. "Layer 1 (L1)", "Decentralized Finance".
+  Future<List<String>> getCoinCategories(String coinId);
 }
 
 /// A value with the moment it was fetched, so staleness can be judged.
@@ -192,6 +195,26 @@ class CryptoRemoteDatasourceImpl implements CryptoRemoteDatasource {
       }).toList();
       _charts[key] = _Cached(points, DateTime.now());
       return points;
+    } catch (e) {
+      _rethrowAs(e, coinId);
+    }
+  }
+
+  @override
+  Future<List<String>> getCoinCategories(String coinId) async {
+    // market_data is skipped: this response is only wanted for its labels, and
+    // the slimmer payload is kinder to the shared request budget.
+    try {
+      final response = await dio.get('/coins/$coinId', queryParameters: {
+        'localization': false,
+        'tickers': false,
+        'market_data': false,
+        'community_data': false,
+        'developer_data': false,
+      });
+      final raw = response.data['categories'];
+      if (raw is! List) return const [];
+      return raw.whereType<String>().toList();
     } catch (e) {
       _rethrowAs(e, coinId);
     }

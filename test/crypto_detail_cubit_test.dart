@@ -91,6 +91,8 @@ class _FakeRepository implements CryptoRepository {
   Future<List<CryptoEntity>> getPortfolio() async => [_entity];
   @override
   Future<List<Map<String, dynamic>>> searchCoins(String query) async => [];
+  @override
+  Future<List<String>> getCoinCategories(String coinId) async => const [];
 }
 
 CryptoDetailCubit _cubit(_FakeRepository repo) => CryptoDetailCubit(
