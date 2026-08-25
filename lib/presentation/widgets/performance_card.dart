@@ -161,13 +161,19 @@ class _ConcentrationRow extends StatelessWidget {
         const SizedBox(width: 8),
         const Text('Concentration',
             style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-        const Spacer(),
-        Text(
-          '${index.toStringAsFixed(0)} · $_label',
-          style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600),
+        const SizedBox(width: 12),
+        // The label grows with the verdict; an unconstrained Text after a
+        // Spacer overflowed the card by 217 pixels on a phone.
+        Expanded(
+          child: Text(
+            '${index.toStringAsFixed(0)} · $_label',
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );

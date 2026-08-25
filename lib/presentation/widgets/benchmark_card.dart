@@ -163,15 +163,19 @@ class _Row extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: highlight ? AppTheme.textPrimary : AppTheme.textSecondary,
-              fontSize: 13,
-              fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    highlight ? AppTheme.textPrimary : AppTheme.textSecondary,
+                fontSize: 13,
+                fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           if (rate != null) ...[
             Text(
               Formatters.formatPercent(rate! * 100),

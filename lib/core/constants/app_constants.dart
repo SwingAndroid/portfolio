@@ -5,7 +5,7 @@ class AppConstants {
   ///
   /// Kept in step with `pubspec.yaml` by a test rather than by discipline: a
   /// version label that can drift will eventually lie.
-  static const String appVersion = '1.7.0';
+  static const String appVersion = '1.7.1';
 
   // ── CoinGecko ─────────────────────────────────────────────────────────────
   static const String coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';

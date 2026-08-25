@@ -236,12 +236,17 @@ class _PairLine extends StatelessWidget {
           Text(label,
               style: const TextStyle(
                   color: AppTheme.textTertiary, fontSize: 11)),
-          const Spacer(),
-          Text('${pair.a} · ${pair.b}',
-              style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          const SizedBox(width: 10),
+          // Ticker pairs vary in length, so this has to be allowed to shrink.
+          Expanded(
+            child: Text('${pair.a} · ${pair.b}',
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500)),
+          ),
           const SizedBox(width: 8),
           Text(
             pair.value.toStringAsFixed(2),
